@@ -1,0 +1,95 @@
+diff --git a/node_modules/nostalgist/dist/nostalgist.js b/node_modules/nostalgist/dist/nostalgist.js
+index 4f87a91..80bf645 100644
+--- a/node_modules/nostalgist/dist/nostalgist.js
++++ b/node_modules/nostalgist/dist/nostalgist.js
+@@ -248,7 +248,7 @@ function requirePathBrowserify() {
+       else
+         code = 47;
+       if (code === 47) {
+-        if (lastSlash === i2 - 1 || dots === 1) ;
++        if (lastSlash === i2 - 1 || dots === 1);
+         else if (lastSlash !== i2 - 1 && dots === 2) {
+           if (res.length < 2 || lastSegmentLength !== 2 || res.charCodeAt(res.length - 1) !== 46 || res.charCodeAt(res.length - 2) !== 46) {
+             if (res.length > 2) {
+@@ -550,8 +550,8 @@ function requirePathBrowserify() {
+         }
+       }
+       if (startDot === -1 || end === -1 || // We saw a non-dot character immediately before the dot
+-      preDotState === 0 || // The (right-most) trimmed path component is exactly '..'
+-      preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
++        preDotState === 0 || // The (right-most) trimmed path component is exactly '..'
++        preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+         return "";
+       }
+       return path2.slice(startDot, end);
+@@ -602,8 +602,8 @@ function requirePathBrowserify() {
+         }
+       }
+       if (startDot === -1 || end === -1 || // We saw a non-dot character immediately before the dot
+-      preDotState === 0 || // The (right-most) trimmed path component is exactly '..'
+-      preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
++        preDotState === 0 || // The (right-most) trimmed path component is exactly '..'
++        preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+         if (end !== -1) {
+           if (startPart === 0 && isAbsolute) ret.base = ret.name = path2.slice(1, end);
+           else ret.base = ret.name = path2.slice(startPart, end);
+@@ -1048,7 +1048,7 @@ function isResolvableFileInput(value) {
+ }
+ function isZip(uint8Array) {
+   return uint8Array[0] === 80 && // eslint-disable-next-line unicorn/number-literal-case
+-  uint8Array[1] === 75 && (uint8Array[2] === 3 || uint8Array[2] === 5 || uint8Array[2] === 7) && (uint8Array[3] === 4 || uint8Array[3] === 6 || uint8Array[3] === 8);
++    uint8Array[1] === 75 && (uint8Array[2] === 3 || uint8Array[2] === 5 || uint8Array[2] === 7) && (uint8Array[3] === 4 || uint8Array[3] === 6 || uint8Array[3] === 8);
+ }
+ const originalSetImmediate = globalThis.setImmediate;
+ function setImmediate(callback) {
+@@ -1938,30 +1938,38 @@ class EmulatorFileSystem {
+     } catch {
+     }
+   }
++  stat(path) {
++    const { FS } = this;
++    try {
++      return FS.stat(path);
++    } catch {
++      return null;
++    }
++  }
+   async waitForFile(fileName) {
+-    const maxRetries = 30;
+-    let buffer;
++    const maxRetries = 120;
++    const initialDelay = 50;
++    let lastSize = -1;
+     let isFinished = false;
+     let retryTimes = 0;
+     while (retryTimes <= maxRetries && !isFinished) {
+-      const delayTime = Math.min(100 * 2 ** retryTimes, 1e3);
++      const delayTime = Math.min(50 * 2 ** retryTimes, 500);
+       await delay(delayTime);
+       checkIsAborted(this.signal);
+-      try {
+-        const newBuffer = this.readFile(fileName, "binary").buffer;
+-        if (buffer) {
+-          isFinished = buffer.byteLength > 0 && buffer.byteLength === newBuffer.byteLength;
++      const stats = this.stat(fileName);
++      if (stats) {
++        const currentSize = stats.size;
++        if (lastSize > 0 && currentSize === lastSize) {
++          isFinished = true;
+         }
+-        buffer = newBuffer;
+-      } catch (error) {
+-        console.warn(error);
++        lastSize = currentSize;
+       }
+       retryTimes += 1;
+     }
+-    if (!(isFinished && buffer)) {
++    if (!isFinished) {
+       throw new Error("fs timeout");
+     }
+-    return buffer;
++    return this.readFile(fileName, "binary").buffer;
+   }
+   async writeFile(filePath, fileContent) {
+     const { FS } = this;

@@ -1,0 +1,157 @@
+/**
+ * Utilities for viewport and fullscreen detection
+ */
+
+/**
+ * Check if document is in fullscreen mode (all vendor prefixes)
+ */
+export function isFullscreen(): boolean {
+  const doc = document as any;
+  return !!(
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.mozFullScreenElement ||
+    doc.msFullscreenElement
+  );
+}
+
+/**
+ * Get all fullscreen change event names (for all vendor prefixes)
+ */
+export function getFullscreenEventNames(): string[] {
+  return [
+    'fullscreenchange',
+    'webkitfullscreenchange',
+    'mozfullscreenchange',
+    'MSFullscreenChange',
+  ];
+}
+
+/**
+ * Setup fullscreen change listener with all vendor prefixes
+ * Returns cleanup function
+ */
+export function setupFullscreenListener(
+  callback: () => void
+): () => void {
+  const eventNames = getFullscreenEventNames();
+  eventNames.forEach((eventName) => {
+    document.addEventListener(eventName, callback);
+  });
+
+  return () => {
+    eventNames.forEach((eventName) => {
+      document.removeEventListener(eventName, callback);
+    });
+  };
+}
+
+/**
+ * Detect if device is mobile
+ * Uses multiple heuristics for reliable detection
+ */
+export function isMobileDevice(): boolean {
+  // Check for touch capability
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  
+  // Use matchMedia for pointer type (most reliable)
+  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  
+  // Use visual viewport if available (more accurate on mobile)
+  const width = window.visualViewport?.width || window.innerWidth;
+  const isSmallScreen = width < 768;
+  
+  // Check user agent for mobile devices
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+  
+  // Mobile if has touch AND (coarse pointer OR small screen OR mobile UA)
+  return hasTouch && (hasCoarsePointer || isSmallScreen || isMobileUA);
+}
+
+/**
+ * Get current viewport dimensions
+ * Uses visual viewport API if available (better for mobile with keyboard/address bar)
+ */
+export function getViewportSize(): { width: number; height: number } {
+  return {
+    width: window.visualViewport?.width || window.innerWidth,
+    height: window.visualViewport?.height || window.innerHeight,
+  };
+}
+
+/**
+ * Get current screen orientation
+ * Uses viewport dimensions to determine orientation
+ */
+export function getCurrentOrientation(): 'portrait' | 'landscape' {
+  const { width, height } = getViewportSize();
+  return width > height ? 'landscape' : 'portrait';
+}
+
+/**
+ * Get current screen orientation from container dimensions
+ * More reliable than window dimensions during transitions
+ */
+export function getOrientationFromContainer(container: HTMLElement): 'portrait' | 'landscape' {
+  const rect = container.getBoundingClientRect();
+  return rect.width > rect.height ? 'landscape' : 'portrait';
+}
+
+/**
+ * Create an orientation change handler with iOS-specific timing
+ * Handles duplicate events and waits for layout updates
+ * 
+ * @param callback - Function to call when orientation changes
+ * @param checkReady - Optional function to check if layout is ready (returns true when ready)
+ * @param maxRafs - Maximum number of RAF attempts (default: 3)
+ * @returns Handler function to attach to orientationchange event
+ */
+export function createOrientationChangeHandler(
+  callback: () => void,
+  checkReady?: () => boolean,
+  maxRafs: number = 3
+): () => void {
+  let lastOrientation: 'portrait' | 'landscape' | null = null;
+  
+  return () => {
+    const currentOrientation = getCurrentOrientation();
+    
+    // Only process if orientation actually changed (iOS can fire multiple times)
+    if (lastOrientation === currentOrientation) {
+      return;
+    }
+    
+    lastOrientation = currentOrientation;
+    
+    // iOS Safari: orientationchange fires before layout is updated
+    // Use multiple RAFs to wait for layout, with a fallback timeout
+    let rafCount = 0;
+    
+    const tryCallback = () => {
+      rafCount++;
+      
+      // If checkReady is provided, use it to verify layout is ready
+      if (checkReady && !checkReady()) {
+        // If layout not ready and we haven't tried too many times, try again
+        if (rafCount < maxRafs) {
+          requestAnimationFrame(tryCallback);
+        } else {
+          // Fallback: force callback after a short delay (iOS edge case)
+          setTimeout(callback, 100);
+        }
+        return;
+      }
+      
+      // Layout is ready (or no check provided), execute callback
+      callback();
+    };
+    
+    // Start with a small delay to let iOS start the transition
+    setTimeout(() => {
+      requestAnimationFrame(tryCallback);
+    }, 50);
+  };
+}
+
