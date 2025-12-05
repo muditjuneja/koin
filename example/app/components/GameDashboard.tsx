@@ -39,6 +39,11 @@ const SAMPLE_ROMS: Record<string, string> = {
     gb: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/gb240p.gb', // 240p Test Suite
     gba: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee_mb.gba', // 240p Test Suite
     genesis: 'https://raw.githubusercontent.com/retrobrews/md-games/master/OldTowers/OldTowers.bin', // Old Towers (Homebrew)
+    mastersystem: 'https://raw.githubusercontent.com/retrobrews/sms-games/master/DiggerChan/DiggerChan.sms', // Digger Chan (Homebrew)
+    gamegear: 'https://raw.githubusercontent.com/retrobrews/gg-games/master/WingWarriors/WingWarriors.gg', // Wing Warriors (Homebrew)
+    n64: 'https://github.com/PeterLemon/N64/raw/master/CPUTest/CPUTest.z64', // CPU Test (Homebrew/Tech Demo)
+    ps1: 'https://github.com/PeterLemon/PSX/raw/master/Demo/Texture/Texture.exe', // Texture Demo (Homebrew)
+    pcengine: 'https://raw.githubusercontent.com/retrobrews/pce-games/master/Reflectron/Reflectron.pce', // Reflectron (Homebrew)
 };
 
 export default function GameDashboard() {
