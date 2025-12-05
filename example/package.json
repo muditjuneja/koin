@@ -4,16 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "cd .. && npx tsup && cd example && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "npx patch-package --patch-dir ../patches"
   },
   "dependencies": {
+    "koin-deck-retro-player": "file:..",
     "lucide-react": "^0.555.0",
     "next": "16.0.7",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "koin-deck-retro-player": "file:.."
+    "react-dom": "19.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -22,8 +23,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
+    "patch-package": "^8.0.1",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "patch-package": "^8.0.1"
+    "tsup": "^8.5.1",
+    "typescript": "^5"
   }
 }

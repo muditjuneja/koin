@@ -20,7 +20,7 @@
         "build:element": "tsup --config tsup.element.config.ts",
         "dev": "tsup --watch",
         "lint": "eslint src",
-        "postinstall": "npx patch-package"
+        "postinstall": "node -e \"if (require('fs').existsSync('node_modules/nostalgist')) require('child_process').execSync('npx patch-package', {stdio: 'inherit'})\""
     },
     "keywords": [
         "retro",
