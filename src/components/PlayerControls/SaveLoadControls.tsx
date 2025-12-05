@@ -38,7 +38,7 @@ export const SaveLoadControls = memo(function SaveLoadControls({
     onAutoSaveToggle,
 }: SaveLoadControlsProps) {
     return (
-        <div className="flex items-center gap-1 px-2 sm:px-4 border-x border-white/10 flex-shrink-0">
+        <div className="flex items-center gap-3 px-3 sm:px-4 border-x border-white/10 flex-shrink-0">
             {/* Auto-save indicator - clickable to toggle, always visible when enabled */}
             {autoSaveEnabled && (
                 <div className="flex-shrink-0">

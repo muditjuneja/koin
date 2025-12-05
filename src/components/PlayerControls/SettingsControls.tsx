@@ -45,7 +45,7 @@ export const SettingsControls = memo(function SettingsControls({
         : '';
 
     return (
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-3 flex-shrink-0">
             {/* Fullscreen button - hidden on mobile (we have floating button) */}
             <ControlButton onClick={onFullscreen} icon={Maximize} label="Full" disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
             {/* Hide some buttons on mobile to save space */}

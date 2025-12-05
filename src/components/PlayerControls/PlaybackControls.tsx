@@ -50,7 +50,7 @@ export const PlaybackControls = memo(function PlaybackControls({
     const hasRewindHistory = rewindBufferSize > 0;
 
     return (
-        <div className="flex items-center gap-4 flex-shrink-0">
+        <div className="flex items-center gap-3 flex-shrink-0">
             <ControlButton
                 onClick={onPauseToggle}
                 icon={(!isRunning || isPaused) ? Play : Pause}
