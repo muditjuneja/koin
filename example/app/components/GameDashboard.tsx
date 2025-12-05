@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { GamePlayer, Cheat, RACredentials } from 'koin-deck-retro-player';
-import { Settings, Save, Upload, Gamepad2, Trophy, Disc, Play, FileCode, User } from 'lucide-react';
+import { Settings, Gamepad2, Upload, Play, Disc, User, X, ChevronDown } from 'lucide-react';
 import * as SaveManager from '../lib/save-manager';
 
-// System Data matching the main package
+// System Data
 const SYSTEMS = [
     { id: 'nes', name: 'Nintendo Entertainment System', shortName: 'NES', color: '#FF3333', core: 'fceumm' },
     { id: 'snes', name: 'Super Nintendo', shortName: 'SNES', color: '#AA00FF', core: 'snes9x' },
@@ -32,34 +32,51 @@ const MOCK_CHEATS: Record<string, Cheat[]> = {
     ],
 };
 
-// Legal Homebrew / Test Suite ROMs
 const SAMPLE_ROMS: Record<string, string> = {
-    nes: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee.nes', // 240p Test Suite
-    snes: 'https://raw.githubusercontent.com/retrobrews/snes-games/master/AstroHawk/AstroHawk.sfc', // AstroHawk (Homebrew)
-    gb: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/gb240p.gb', // 240p Test Suite
-    gba: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee_mb.gba', // 240p Test Suite
-    genesis: 'https://raw.githubusercontent.com/retrobrews/md-games/master/OldTowers/OldTowers.bin', // Old Towers (Homebrew)
-    mastersystem: 'https://raw.githubusercontent.com/retrobrews/sms-games/master/DiggerChan/DiggerChan.sms', // Digger Chan (Homebrew)
-    gamegear: 'https://raw.githubusercontent.com/retrobrews/gg-games/master/WingWarriors/WingWarriors.gg', // Wing Warriors (Homebrew)
-    n64: 'https://github.com/PeterLemon/N64/raw/master/CPUTest/CPUTest.z64', // CPU Test (Homebrew/Tech Demo)
-    ps1: 'https://github.com/PeterLemon/PSX/raw/master/Demo/Texture/Texture.exe', // Texture Demo (Homebrew)
-    pcengine: 'https://raw.githubusercontent.com/retrobrews/pce-games/master/Reflectron/Reflectron.pce', // Reflectron (Homebrew)
+    nes: '/flappybird.nes', // Local file to avoid CORS
+    snes: 'https://raw.githubusercontent.com/retrobrews/snes-games/master/AstroHawk/AstroHawk.sfc',
+    gb: 'https://raw.githubusercontent.com/retrobrews/gb-games/master/TobuTobuGirl/TobuTobuGirl.gb', // Tobu Tobu Girl (Homebrew)
+    gba: 'https://raw.githubusercontent.com/retrobrews/gba-games/master/Anguna/Anguna.gba', // Anguna (Homebrew)
+    genesis: 'https://raw.githubusercontent.com/retrobrews/md-games/master/OldTowers/OldTowers.bin',
+    mastersystem: 'https://raw.githubusercontent.com/retrobrews/sms-games/master/DiggerChan/DiggerChan.sms',
+    gamegear: 'https://raw.githubusercontent.com/retrobrews/gg-games/master/WingWarriors/WingWarriors.gg',
+    n64: 'https://raw.githubusercontent.com/retrobrews/n64-games/master/Dexanoid/Dexanoid.z64', // Dexanoid (Homebrew)
+    ps1: 'https://github.com/PeterLemon/PSX/raw/master/Demo/Texture/Texture.exe',
+    pcengine: 'https://raw.githubusercontent.com/retrobrews/pce-games/master/Reflectron/Reflectron.pce',
+};
+
+// Neo-Brutalism Button Component
+const NeoButton = ({ onClick, children, className = '', variant = 'primary', disabled = false }: any) => {
+    const baseStyle = "border-2 border-black font-bold uppercase transition-transform active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed";
+    const variants = {
+        primary: "bg-[#FFD600] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]",
+        secondary: "bg-white text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]",
+        danger: "bg-[#FF3333] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]",
+        outline: "bg-transparent border-black shadow-none hover:bg-black hover:text-white"
+    };
+
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className={`${baseStyle} ${variants[variant as keyof typeof variants]} ${className} py-3 px-6 flex items-center justify-center gap-2`}
+        >
+            {children}
+        </button>
+    );
 };
 
 export default function GameDashboard() {
-    // State
     const [selectedSystem, setSelectedSystem] = useState(SYSTEMS[0]);
     const [romFile, setRomFile] = useState<File | null>(null);
     const [biosFile, setBiosFile] = useState<File | null>(null);
     const [romUrl, setRomUrl] = useState<string | null>(null);
     const [biosUrl, setBiosUrl] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
 
     // RA State
     const [raUser, setRaUser] = useState<RACredentials | null>(null);
 
-    // Handle File Upload
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -82,14 +99,11 @@ export default function GameDashboard() {
         const sampleUrl = SAMPLE_ROMS[selectedSystem.id];
         if (sampleUrl) {
             setRomUrl(sampleUrl);
-            setRomFile(null); // Clear file if using URL
+            setRomFile(null);
             setIsPlaying(true);
-        } else {
-            alert('No sample game available for this system. Please upload a ROM.');
         }
     };
 
-    // Cleanup URL on unmount or change
     useEffect(() => {
         return () => {
             if (romUrl && !romUrl.startsWith('http')) URL.revokeObjectURL(romUrl);
@@ -118,16 +132,13 @@ export default function GameDashboard() {
         await SaveManager.deleteSlot(id, slot);
     }, [romFile, romUrl]);
 
-    // RA Login Handler
     const handleRALogin = async (username: string, token: string) => {
-        // In a real app, you might verify this token with a server proxy
-        // For this demo, we just accept it and set the user
         if (username && token) {
             setRaUser({
                 username,
                 connectToken: token,
-                score: 12345, // Mock score
-                avatarUrl: 'https://media.retroachievements.org/UserPic/mudit.png' // Mock avatar
+                score: 12345,
+                avatarUrl: 'https://media.retroachievements.org/UserPic/mudit.png'
             });
             return true;
         }
@@ -136,7 +147,7 @@ export default function GameDashboard() {
 
     if (isPlaying && romUrl) {
         return (
-            <div className="fixed inset-0 bg-black z-50">
+            <div className="fixed inset-0 bg-[#0f0f0f] z-50">
                 <GamePlayer
                     romUrl={romUrl}
                     romId={romFile?.name || romUrl || 'unknown'}
@@ -146,22 +157,14 @@ export default function GameDashboard() {
                     systemColor={selectedSystem.color}
                     biosUrl={biosUrl || undefined}
                     onExit={() => setIsPlaying(false)}
-
-                    // Save Management
                     onSaveState={handleSaveState}
                     onLoadState={handleLoadState}
                     onGetSaveSlots={handleGetSlots}
                     onDeleteSaveState={handleDeleteSlot}
-
-                    // RetroAchievements
                     raUser={raUser}
                     onRALogin={handleRALogin}
                     onRALogout={() => setRaUser(null)}
-
-                    // Cheats
                     cheats={MOCK_CHEATS[selectedSystem.id] || []}
-
-                    // Auto-Save
                     autoSaveInterval={30000}
                 />
             </div>
@@ -169,197 +172,170 @@ export default function GameDashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white p-8 font-sans selection:bg-purple-500/30">
-            <header className="max-w-6xl mx-auto mb-12 flex items-center justify-between">
-                <div>
-                    <h1 className="text-5xl font-black bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent tracking-tight">
-                        RETRO SAGA
-                    </h1>
-                    <p className="text-neutral-400 mt-2 font-medium tracking-wide">NEXT-GEN WEB EMULATION</p>
+        <div className="min-h-screen bg-[#FDFBF7] text-black font-sans selection:bg-[#FFD600] p-4 flex flex-col justify-center">
+            {/* Header */}
+            <header className="max-w-xl mx-auto w-full flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-black text-white flex items-center justify-center border-4 border-black shadow-[3px_3px_0px_0px_#FFD600]">
+                        <Gamepad2 size={20} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-black uppercase leading-none tracking-tighter">KOIN PLAYER</h1>
+                        <p className="text-[9px] font-black bg-black text-[#FFD600] px-1 inline-block tracking-widest mt-0.5">BY THE RETRO SAGA</p>
+                    </div>
                 </div>
-                <button
-                    onClick={() => setShowSettings(!showSettings)}
-                    className={`p-3 rounded-full transition-all ${showSettings ? 'bg-purple-500 text-white' : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800'}`}
-                >
-                    <Settings className="w-6 h-6" />
-                </button>
+
+                {raUser ? (
+                    <div className="flex items-center gap-3 border-2 border-black bg-white px-3 py-1.5 shadow-[3px_3px_0px_0px_#000]">
+                        <div className="w-6 h-6 bg-green-500 border-2 border-black rounded-full flex items-center justify-center">
+                            <User size={12} className="text-white" />
+                        </div>
+                        <div className="hidden md:block">
+                            <div className="font-bold text-xs uppercase">{raUser.username}</div>
+                            <div className="text-[9px] font-mono leading-none">SCORE: {raUser.score}</div>
+                        </div>
+                        <button
+                            onClick={() => setRaUser(null)}
+                            className="ml-2 hover:bg-black hover:text-white p-1 rounded-sm transition-colors"
+                        >
+                            <X size={12} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="border-2 border-black bg-[#E0E0E0] px-3 py-1 text-[10px] font-bold text-gray-500 shadow-[2px_2px_0px_0px_#000]">
+                        GUEST MODE
+                    </div>
+                )}
             </header>
 
-            <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: System Selection */}
-                <div className="lg:col-span-2 space-y-8">
-                    <section>
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-neutral-200">
-                            <Gamepad2 className="text-purple-500" /> SELECT SYSTEM
-                        </h2>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {SYSTEMS.map((sys) => (
-                                <button
-                                    key={sys.id}
-                                    onClick={() => setSelectedSystem(sys)}
-                                    className={`
-                                        p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group
-                                        ${selectedSystem.id === sys.id
-                                            ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_30px_rgba(168,85,247,0.2)]'
-                                            : 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
-                                        }
-                                    `}
-                                >
-                                    <div className="font-bold text-lg mb-1 relative z-10">{sys.shortName}</div>
-                                    <div className="text-xs text-neutral-500 relative z-10">{sys.name}</div>
-                                    {selectedSystem.id === sys.id && (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent" />
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </section>
-
-                    <section className="bg-neutral-900/50 rounded-2xl p-8 border border-neutral-800 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <Disc className="w-64 h-64" />
-                        </div>
-
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-neutral-200 relative z-10">
-                            <Disc className="text-pink-500" /> LOAD GAME
-                        </h2>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                            {/* File Upload */}
-                            <div className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-700 rounded-xl p-8 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group cursor-pointer relative h-64">
-                                <input
-                                    type="file"
-                                    onChange={handleFileUpload}
-                                    className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                                    accept=".nes,.snes,.smc,.gba,.bin,.gen,.md,.z64,.n64,.iso,.cue,.pbp"
-                                />
-                                <Upload className="w-12 h-12 text-neutral-600 group-hover:text-purple-400 mb-4 transition-colors" />
-                                <p className="text-lg font-medium text-neutral-300 text-center">
-                                    {romFile ? romFile.name : 'Drop ROM file here'}
-                                </p>
-                                <p className="text-sm text-neutral-500 mt-2 text-center">
-                                    Supports .nes, .snes, .gba, .gen, .z64, .iso
-                                </p>
+            {/* Main Command Center */}
+            <main className="flex-none w-full">
+                <div className="w-full max-w-xl mx-auto">
+                    <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_#000] p-2 relative">
+                        {/* Decorative header strip */}
+                        <div className="h-5 bg-black w-full mb-4 flex items-center justify-between px-2">
+                            <div className="flex gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#FF3333]"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#FFD600]"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#76FF03]"></div>
                             </div>
+                            <span className="text-white font-mono text-[9px] uppercase">v3.0.0 // LAUNCHER</span>
+                        </div>
 
-                            {/* Quick Actions */}
-                            <div className="space-y-4">
-                                <div className="bg-neutral-950/50 rounded-xl p-4 border border-neutral-800">
-                                    <h3 className="text-sm font-bold text-neutral-400 mb-3 flex items-center gap-2">
-                                        <FileCode className="w-4 h-4" /> BIOS FILE (Optional)
-                                    </h3>
-                                    <div className="relative">
-                                        <input
-                                            type="file"
-                                            onChange={handleBiosUpload}
-                                            className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                                        />
-                                        <button className="w-full py-2 px-4 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm transition-colors text-left flex items-center justify-between">
-                                            <span className="truncate">{biosFile ? biosFile.name : 'Select BIOS...'}</span>
-                                            <Upload className="w-4 h-4" />
+                        <div className="px-6 pb-6 space-y-6">
+
+                            {/* System Selector */}
+                            <section>
+                                <label className="block font-black text-xs uppercase mb-1.5 flex items-center gap-2">
+                                    <Disc size={14} /> Select Platform
+                                </label>
+                                <div className="relative group">
+                                    <select
+                                        value={selectedSystem.id}
+                                        onChange={(e) => setSelectedSystem(SYSTEMS.find(s => s.id === e.target.value) || SYSTEMS[0])}
+                                        className="w-full appearance-none bg-white border-2 border-black p-3 font-bold uppercase cursor-pointer hover:bg-gray-50 focus:bg-[#FFD600]/10 outline-none transition-colors text-sm"
+                                    >
+                                        {SYSTEMS.map(sys => (
+                                            <option key={sys.id} value={sys.id}>
+                                                {sys.name} ({sys.shortName})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                        <ChevronDown size={16} />
+                                    </div>
+                                    <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[4px] translate-y-[4px] -z-10 bg-black group-hover:translate-x-[5px] group-hover:translate-y-[5px] transition-transform"></div>
+                                </div>
+                            </section>
+
+                            <hr className="border-t-2 border-dashed border-gray-300" />
+
+                            {/* ROM Loader */}
+                            <section className="space-y-3">
+                                <label className="block font-black text-xs uppercase mb-1.5 flex items-center gap-2">
+                                    <Upload size={14} /> Load Cartridge
+                                </label>
+
+                                <div className="relative group cursor-pointer">
+                                    <input
+                                        type="file"
+                                        accept=".nes,.snes,.smc,.gba,.bin,.gen,.md,.z64,.n64,.iso,.cue,.pbp"
+                                        onChange={handleFileUpload}
+                                        className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer"
+                                    />
+                                    <div className={`
+                                        border-2 border-black border-dashed p-6 text-center transition-all
+                                        ${romFile ? 'bg-[#76FF03]/20 border-solid' : 'bg-gray-50 hover:bg-white'}
+                                    `}>
+                                        <div className="flex flex-col items-center gap-1.5">
+                                            {romFile ? (
+                                                <>
+                                                    <span className="font-bold text-base break-all">{romFile.name}</span>
+                                                    <span className="text-[10px] font-mono bg-black text-white px-2 py-0.5">READY TO BOOT</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="font-bold text-sm text-gray-400 group-hover:text-black">DROP FILE HERE</span>
+                                                    <span className="text-[10px] text-gray-400">OR CLICK TO BROWSE</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {/* Hard shadow for dropzone */}
+                                    <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[4px] translate-y-[4px] -z-10 bg-[#E0E0E0]"></div>
+                                </div>
+
+                                {/* BIOS Loader (Mini) */}
+                                <div className="flex items-center gap-2">
+                                    <div className="relative overflow-hidden flex-1">
+                                        <input type="file" onChange={handleBiosUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                                        <button className="w-full text-[10px] font-bold border-2 border-black px-3 py-2 text-left hover:bg-gray-100 flex justify-between items-center bg-white">
+                                            <span className="truncate">{biosFile ? biosFile.name : 'LOAD BIOS (OPTIONAL)'}</span>
+                                            <Upload size={10} />
                                         </button>
+                                        <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[2px] translate-y-[2px] -z-10 bg-black"></div>
                                     </div>
                                 </div>
+                            </section>
 
-                                <div className="bg-neutral-950/50 rounded-xl p-4 border border-neutral-800">
-                                    <h3 className="text-sm font-bold text-neutral-400 mb-3 flex items-center gap-2">
-                                        <Play className="w-4 h-4" /> QUICK PLAY
-                                    </h3>
-                                    <button
-                                        onClick={handleQuickPlay}
-                                        disabled={!SAMPLE_ROMS[selectedSystem.id]}
-                                        className="w-full py-3 px-4 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm transition-colors flex items-center justify-center gap-2 font-medium"
-                                    >
-                                        <Play className="w-4 h-4 fill-current" />
-                                        Load Sample Game
-                                    </button>
-                                </div>
+                            {/* Actions */}
+                            <div className="pt-2 flex flex-col gap-3">
+                                {romFile || romUrl ? (
+                                    <NeoButton onClick={() => setIsPlaying(true)} variant="primary" className="w-full py-3 text-lg">
+                                        <Play fill="currentColor" size={20} /> POWER ON
+                                    </NeoButton>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <NeoButton
+                                            onClick={handleQuickPlay}
+                                            variant="secondary"
+                                            className="w-full text-xs"
+                                            disabled={!SAMPLE_ROMS[selectedSystem.id]}
+                                        >
+                                            <Play size={14} /> QUICK DEMO
+                                        </NeoButton>
+                                        <NeoButton variant="outline" disabled className="w-full text-xs opacity-50">
+                                            INSERT DISK
+                                        </NeoButton>
+                                    </div>
+                                )}
                             </div>
+
                         </div>
+                    </div>
 
-                        {/* Start Button */}
-                        {(romFile || romUrl) && (
-                            <div className="mt-8 flex justify-end relative z-10 animate-in slide-in-from-bottom fade-in duration-300">
-                                <button
-                                    onClick={() => setIsPlaying(true)}
-                                    className="px-12 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-white shadow-lg hover:shadow-purple-500/25 hover:scale-105 transition-all flex items-center gap-3 text-lg"
-                                >
-                                    <Play className="w-6 h-6 fill-current" />
-                                    START GAME
-                                </button>
-                            </div>
-                        )}
-                    </section>
-                </div>
-
-                {/* Right Column: Settings & Info */}
-                <div className="space-y-8">
-                    {/* RetroAchievements Status */}
-                    <section className="bg-neutral-900/50 rounded-2xl p-6 border border-neutral-800">
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-neutral-200">
-                            <Trophy className="text-yellow-500" /> RETROACHIEVEMENTS
-                        </h2>
-                        {raUser ? (
-                            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                                    <User className="text-green-500" />
-                                </div>
-                                <div>
-                                    <div className="font-bold text-green-400">{raUser.username}</div>
-                                    <div className="text-xs text-green-500/70">Logged In</div>
-                                </div>
-                                <button
-                                    onClick={() => setRaUser(null)}
-                                    className="ml-auto text-xs text-neutral-500 hover:text-white underline"
-                                >
-                                    Logout
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="text-sm text-neutral-400">
-                                <p className="mb-4">Login to track achievements and compete on leaderboards.</p>
-                                <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800 text-xs text-neutral-500">
-                                    Login is handled inside the player interface.
-                                </div>
-                            </div>
-                        )}
-                    </section>
-
-                    <section className="bg-neutral-900/50 rounded-2xl p-6 border border-neutral-800">
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-neutral-200">
-                            <Save className="text-green-500" /> FEATURES
-                        </h2>
-                        <ul className="space-y-4 text-sm text-neutral-400">
-                            <li className="flex items-start gap-3">
-                                <span className="w-2 h-2 rounded-full bg-green-500 mt-1.5"></span>
-                                <div>
-                                    <strong className="text-neutral-200 block">Robust Save System</strong>
-                                    IndexedDB storage with screenshots and timestamps.
-                                </div>
-                            </li>
-                            <li className="flex items-start gap-3">
-                                <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5"></span>
-                                <div>
-                                    <strong className="text-neutral-200 block">Controller Support</strong>
-                                    Auto-detection for Xbox, PS, and generic gamepads.
-                                </div>
-                            </li>
-                            <li className="flex items-start gap-3">
-                                <span className="w-2 h-2 rounded-full bg-purple-500 mt-1.5"></span>
-                                <div>
-                                    <strong className="text-neutral-200 block">Reliability</strong>
-                                    Optimized file system with heavy-load protection.
-                                </div>
-                            </li>
-                            <li className="flex items-start gap-3">
-                                <span className="w-2 h-2 rounded-full bg-yellow-500 mt-1.5"></span>
-                                <div>
-                                    <strong className="text-neutral-200 block">RetroAchievements</strong>
-                                    Full integration with login, hardcore mode, and popups.
-                                </div>
-                            </li>
-                        </ul>
-                    </section>
+                    {/* Footer Info */}
+                    <div className="mt-4 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest space-y-1">
+                        <div>
+                            <a href="https://koin.theretrosaga.com/" target="_blank" rel="noopener noreferrer" className="hover:text-black hover:underline transition-colors">
+                                POWERED BY KOIN DECK
+                            </a>
+                        </div>
+                        <div className="text-[9px] text-gray-300">
+                            CORE BUILT ON <a href="https://nostalgist.js.org/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-500 underline">NOSTALGIST.JS</a>
+                        </div>
+                        <div>v0.1.4</div>
+                    </div>
                 </div>
             </main>
         </div>
