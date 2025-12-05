@@ -1,18 +1,25 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { GamePlayer, Cheat, SaveSlot, RACredentials } from 'retro-game-player';
+import { GamePlayer, Cheat, RACredentials } from 'koin-deck-retro-player';
 import { Settings, Save, Upload, Gamepad2, Trophy, Disc, Play, FileCode, User } from 'lucide-react';
 import * as SaveManager from '../lib/save-manager';
 
-// Mock Data
+// System Data matching the main package
 const SYSTEMS = [
-    { id: 'nes', name: 'Nintendo Entertainment System', shortName: 'NES', color: '#e60012', core: 'fceumm' },
-    { id: 'snes', name: 'Super Nintendo', shortName: 'SNES', color: '#514689', core: 'snes9x' },
-    { id: 'gba', name: 'Game Boy Advance', shortName: 'GBA', color: '#232185', core: 'mgba' },
-    { id: 'genesis', name: 'Sega Genesis', shortName: 'Genesis', color: '#000000', core: 'genesis_plus_gx' },
-    { id: 'n64', name: 'Nintendo 64', shortName: 'N64', color: '#fdb927', core: 'mupen64plus_next' },
-    { id: 'ps1', name: 'PlayStation', shortName: 'PS1', color: '#003087', core: 'pcsx_rearmed' },
+    { id: 'nes', name: 'Nintendo Entertainment System', shortName: 'NES', color: '#FF3333', core: 'fceumm' },
+    { id: 'snes', name: 'Super Nintendo', shortName: 'SNES', color: '#AA00FF', core: 'snes9x' },
+    { id: 'n64', name: 'Nintendo 64', shortName: 'N64', color: '#FFD600', core: 'mupen64plus_next' },
+    { id: 'gb', name: 'Game Boy', shortName: 'GB', color: '#76FF03', core: 'gambatte' },
+    { id: 'gbc', name: 'Game Boy Color', shortName: 'GBC', color: '#F50057', core: 'gambatte' },
+    { id: 'gba', name: 'Game Boy Advance', shortName: 'GBA', color: '#304FFE', core: 'mgba' },
+    { id: 'genesis', name: 'Sega Genesis', shortName: 'Genesis', color: '#2979FF', core: 'genesis_plus_gx' },
+    { id: 'mastersystem', name: 'Sega Master System', shortName: 'SMS', color: '#FF3D00', core: 'gearsystem' },
+    { id: 'gamegear', name: 'Sega Game Gear', shortName: 'GG', color: '#1DE9B6', core: 'gearsystem' },
+    { id: 'ps1', name: 'PlayStation', shortName: 'PS1', color: '#448AFF', core: 'pcsx_rearmed' },
+    { id: 'pcengine', name: 'PC Engine', shortName: 'PCE', color: '#FF9100', core: 'mednafen_pce_fast' },
+    { id: 'neogeo', name: 'Neo Geo', shortName: 'NeoGeo', color: '#C62828', core: 'fbalpha2012_neogeo' },
+    { id: 'atari2600', name: 'Atari 2600', shortName: '2600', color: '#E64A19', core: 'stella' },
 ];
 
 const MOCK_CHEATS: Record<string, Cheat[]> = {
@@ -25,8 +32,12 @@ const MOCK_CHEATS: Record<string, Cheat[]> = {
     ],
 };
 
+// Legal Homebrew / Test Suite ROMs
 const SAMPLE_ROMS: Record<string, string> = {
-    nes: 'https://nostalgist.js.org/flappybird.nes',
+    nes: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee.nes', // 240p Test Suite
+    gb: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/gb240p.gb', // 240p Test Suite
+    gba: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee_mb.gba', // 240p Test Suite
+    genesis: 'https://raw.githubusercontent.com/retrobrews/md-games/master/OldTowers/OldTowers.bin', // Old Towers (Homebrew, checking if valid)
 };
 
 export default function GameDashboard() {
@@ -143,6 +154,9 @@ export default function GameDashboard() {
 
                     // Cheats
                     cheats={MOCK_CHEATS[selectedSystem.id] || []}
+
+                    // Auto-Save
+                    autoSaveInterval={30000}
                 />
             </div>
         );

@@ -13,7 +13,7 @@
     "next": "16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "retro-game-player": "file:.."
+    "koin-deck-retro-player": "file:.."
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
