@@ -35,9 +35,10 @@ const MOCK_CHEATS: Record<string, Cheat[]> = {
 // Legal Homebrew / Test Suite ROMs
 const SAMPLE_ROMS: Record<string, string> = {
     nes: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee.nes', // 240p Test Suite
+    snes: 'https://raw.githubusercontent.com/retrobrews/snes-games/master/AstroHawk/AstroHawk.sfc', // AstroHawk (Homebrew)
     gb: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/gb240p.gb', // 240p Test Suite
     gba: 'https://github.com/pinobatch/240p-test-mini/releases/download/v0.23/240pee_mb.gba', // 240p Test Suite
-    genesis: 'https://raw.githubusercontent.com/retrobrews/md-games/master/OldTowers/OldTowers.bin', // Old Towers (Homebrew, checking if valid)
+    genesis: 'https://raw.githubusercontent.com/retrobrews/md-games/master/OldTowers/OldTowers.bin', // Old Towers (Homebrew)
 };
 
 export default function GameDashboard() {
