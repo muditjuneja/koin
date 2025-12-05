@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "cd .. && npx tsup && cd example && next build",
     "start": "next start",
-    "lint": "eslint",
-    "postinstall": "npx patch-package --patch-dir ../patches"
+    "lint": "eslint"
   },
   "dependencies": {
     "koin-deck-retro-player": "file:..",
