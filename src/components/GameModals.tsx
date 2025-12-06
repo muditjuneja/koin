@@ -1,7 +1,8 @@
 import ControlMapper from './Modals/ControlMapper';
 import GamepadMapper from './Modals/GamepadMapper';
 import CheatModal from './Modals/CheatModal';
-import SaveSlotModal from './Modals/SaveSlotModal';
+import SavedSlotModal from './Modals/SaveSlotModal';
+import BiosSelectionModal from './Modals/BiosSelectionModal';
 import { KeyboardMapping } from '../lib/controls';
 import { SaveSlot } from './types';
 
@@ -36,6 +37,13 @@ interface GameModalsProps {
     maxSlots?: number;
     currentTier?: string;
     onUpgrade?: () => void;
+
+    // Bios Modal
+    biosModalOpen: boolean;
+    setBiosModalOpen: (open: boolean) => void;
+    availableBios?: { id: string; name: string; description?: string }[];
+    currentBiosId?: string;
+    onSelectBios?: (biosId: string) => void;
 }
 
 export default function GameModals({
@@ -68,6 +76,12 @@ export default function GameModals({
     maxSlots,
     currentTier,
     onUpgrade,
+
+    biosModalOpen,
+    setBiosModalOpen,
+    availableBios,
+    currentBiosId,
+    onSelectBios,
 }: GameModalsProps) {
     return (
         <>
@@ -103,7 +117,7 @@ export default function GameModals({
                 }}
             />
 
-            <SaveSlotModal
+            <SavedSlotModal
                 isOpen={saveModalOpen}
                 mode={saveModalMode}
                 slots={saveSlots}
@@ -118,6 +132,21 @@ export default function GameModals({
                 maxSlots={maxSlots}
                 currentTier={currentTier}
                 onUpgrade={onUpgrade}
+            />
+
+            <BiosSelectionModal
+                isOpen={biosModalOpen}
+                biosOptions={availableBios || []}
+                currentBiosId={currentBiosId}
+                onSelectBios={(id) => {
+                    setBiosModalOpen(false);
+                    onSelectBios?.(id);
+                }}
+                onClose={() => {
+                    setBiosModalOpen(false);
+                    onResume();
+                }}
+                systemColor={systemColor}
             />
         </>
     );

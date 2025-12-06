@@ -8,17 +8,20 @@ import {
 } from '../../lib/controls';
 import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig } from './types';
 
+
+
 interface UseEmulatorCoreProps {
     system: string;
     romUrl: string;
     core?: string;
-    biosUrl?: string;
+    biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' };
     initialState?: Blob | Uint8Array;
     getCanvasElement?: () => HTMLCanvasElement | null;
     keyboardControls?: KeyboardMapping;
     gamepadBindings?: GamepadMapping[];
     retroAchievements?: RetroAchievementsConfig;
     initialVolume?: number;
+    romFileName?: string;
     onReady?: () => void;
     onError?: (error: Error) => void;
 }
@@ -56,6 +59,7 @@ export function useEmulatorCore({
     gamepadBindings,
     retroAchievements,
     initialVolume = 100,
+    romFileName,
     onReady,
     onError,
 }: UseEmulatorCoreProps): UseEmulatorCoreReturn {
@@ -86,6 +90,24 @@ export function useEmulatorCore({
 
             const core = coreOverride || getCore(system);
 
+            // Standard Nostalgist loading
+            // We pass the URL directly. Nostalgist handles fetching.
+            // Note: If URL is very long (>100 chars segments), Nostalgist might fail to detect it as a URL.
+            // We rely on the user's assurance that this won't happen.
+
+            // If romFileName is provided (e.g. for Arcade), we try to construct a ResolvableFile-like object
+            // if Nostalgist supports it, OR we just pass the URL and hope Nostalgist infers name correctly.
+            // However, typical Nostalgist usage is just `rom: romUrl`.
+
+            // If we want to support 'renaming' (e.g. for mapped Arcade games), we'd need to fetch manually.
+            let romOption: any = romUrl;
+
+            // If romFileName is provided, handle it (important for Arcade/NeoGeo)
+            if (romFileName) {
+                // If it's a direct file object or compatible
+                romOption = { fileName: romFileName, fileContent: romUrl };
+            }
+
             // Build input configuration from custom controls
             const inputConfig = buildRetroArchConfig({
                 keyboard: keyboardControls,
@@ -94,16 +116,17 @@ export function useEmulatorCore({
 
             // Convert volume percentage (0-100) to RetroArch dB format
             // RetroArch audio_volume: 0.0 dB = 100%, -20 dB ≈ 10%, -40 dB ≈ 1%
-            // Formula: dB = 20 * log10(volume / 100)
+            // Formula: dB = 20 * Math.log10(volume / 100)
             const volumeDb = initialVolume === 0 ? -80 : 20 * Math.log10(initialVolume / 100);
 
             // Get canvas element at prepare time (not hook initialization time)
             const canvasElement = getCanvasElement?.() || '';
 
+            // ... (rest of config)
+
             const prepareOptions: any = {
                 core,
-                rom: romUrl,
-                bios: biosUrl,
+                rom: romOption,
                 element: canvasElement,
                 retroarchConfig: {
                     menu_driver: 'null',
@@ -112,26 +135,29 @@ export function useEmulatorCore({
                     input_menu_toggle_gamepad_combo: 0,
                     rewind_enable: true,
                     rewind_granularity: 1,
-                    rewind_buffer_size: 100, // Reduced from 100 to save memory if needed, but 100 is standard
+                    rewind_buffer_size: 100,
                     fast_forward_ratio: 2.0,
                     fast_forward_frameskip: 0,
-                    audio_volume: volumeDb.toFixed(2), // Set initial volume in dB
-                    // Enable volume control hotkeys (we'll trigger these programmatically)
-                    input_volume_up: 'add',      // Numpad +
-                    input_volume_down: 'subtract', // Numpad -
-                    input_audio_mute: 'f9',      // F9 for mute toggle
-                    // Apply custom input mappings
+                    audio_volume: volumeDb.toFixed(2),
+                    input_volume_up: 'add',
+                    input_volume_down: 'subtract',
+                    input_audio_mute: 'f9',
                     ...inputConfig,
-                    // RetroAchievements
                     ...(retroAchievements ? {
                         cheevos_enable: true,
                         cheevos_username: retroAchievements.username,
-                        cheevos_token: retroAchievements.token, // Use token instead of password for security
+                        cheevos_token: retroAchievements.token,
                         cheevos_hardcore_mode_enable: retroAchievements.hardcore ?? false,
-                        cheevos_verbose_enable: true, // Enable verbose logging for debugging
+                        cheevos_verbose_enable: true,
                     } : {}),
                 } as Record<string, unknown>,
             };
+
+            // Handle BIOS
+            if (biosUrl) {
+                // Pass BIOS URL or object directly to Nostalgist
+                prepareOptions.bios = biosUrl;
+            }
 
             // Handle initial state
             if (initialState) {
@@ -254,7 +280,7 @@ export function useEmulatorCore({
 
     // Pause
     const pause = useCallback(() => {
-        if (nostalgistRef.current && !isPaused) {
+        if (nostalgistRef.current && !isPaused && status === 'running') {
             try {
                 nostalgistRef.current.pause();
                 setIsPaused(true);
@@ -263,7 +289,7 @@ export function useEmulatorCore({
                 console.error('[Nostalgist] Pause error:', err);
             }
         }
-    }, [isPaused]);
+    }, [isPaused, status]);
 
     // Resume - always attempt to resume, let the emulator handle if already running
     const resume = useCallback(() => {
@@ -271,12 +297,16 @@ export function useEmulatorCore({
             try {
                 nostalgistRef.current.resume();
                 setIsPaused(false);
-                setStatus('running');
+                // Only transition to running if we were paused
+                // This prevents 'ready' state from being overwritten if called prematurely
+                if (status === 'paused') {
+                    setStatus('running');
+                }
             } catch (err) {
                 console.error('[Nostalgist] Resume error:', err);
             }
         }
-    }, []);
+    }, [status]);
 
     // Toggle pause
     const togglePause = useCallback(() => {

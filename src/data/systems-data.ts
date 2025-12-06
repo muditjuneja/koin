@@ -23,6 +23,11 @@ export interface SystemConfig {
 
     // Aliases - other names that should map to this system
     aliases: string[];
+
+    // Metadata
+    biosNeeded?: boolean;
+    biosFileNames?: string[]; // Expected filenames for BIOS matching
+    biosLocation?: 'system' | 'rom_folder'; // Where to mount the BIOS ('system' dir or alongside 'rom_folder')
 }
 
 /**
@@ -110,6 +115,19 @@ export const SYSTEMS: SystemConfig[] = [
         aliases: ['GAME BOY ADVANCE', 'GAMEBOY ADVANCE', 'NINTENDO GAME BOY ADVANCE'],
     },
     {
+        key: 'NDS',
+        label: 'Nintendo DS',
+        fullName: 'Nintendo DS',
+        slug: 'nds',
+        extensions: ['.nds'],
+        core: 'desmume',
+        dbNames: ['Nintendo DS'],
+        iconName: 'NDS',
+        color: 'group-hover:text-[#C51162]',
+        accentHex: '#C51162',
+        aliases: ['NDS', 'NINTENDO DS'],
+    },
+    {
         key: 'VIRTUAL_BOY',
         label: 'Virtual Boy',
         fullName: 'Virtual Boy',
@@ -123,7 +141,36 @@ export const SYSTEMS: SystemConfig[] = [
         aliases: ['VIRTUAL BOY', 'NINTENDO VIRTUAL BOY'],
     },
 
-    // ============ Sega ============
+    {
+        key: 'DREAMCAST',
+        label: 'Sega Dreamcast',
+        fullName: 'Sega Dreamcast',
+        slug: 'dreamcast',
+        extensions: ['.cdi', '.gdi', '.chd'],
+        core: 'flycast',
+        dbNames: ['Sega Dreamcast'],
+        iconName: 'DREAMCAST', // Use existing icon or fallback
+        color: 'group-hover:text-[#FF6D00]',
+        accentHex: '#FF6D00',
+        aliases: ['DREAMCAST', 'SEGA DREAMCAST'],
+        biosNeeded: true,
+        biosFileNames: ['dc_boot.bin', 'dc_flash.bin'],
+    },
+    {
+        key: 'SATURN',
+        label: 'Sega Saturn',
+        fullName: 'Sega Saturn',
+        slug: 'saturn',
+        extensions: ['.cue', '.chd', '.iso'],
+        core: 'yabasanshiro',
+        dbNames: ['Sega Saturn'],
+        iconName: 'SATURN',
+        color: 'group-hover:text-[#6200EA]',
+        accentHex: '#6200EA',
+        aliases: ['SATURN', 'SEGA SATURN'],
+        biosNeeded: true,
+        biosFileNames: ['sega_101.bin', 'mpr-17933.bin'],
+    },
     {
         key: 'GENESIS',
         label: 'Sega Genesis',
@@ -136,6 +183,8 @@ export const SYSTEMS: SystemConfig[] = [
         color: 'group-hover:text-[#2979FF]',
         accentHex: '#2979FF',
         aliases: ['SEGA GENESIS', 'MEGA DRIVE', 'SEGA MEGA DRIVE', 'MEGADRIVE'],
+        biosNeeded: true, // For Sega CD
+        biosFileNames: ['bios_CD_U.bin', 'bios_CD_E.bin', 'bios_CD_J.bin'],
     },
     {
         key: 'MASTER_SYSTEM',
@@ -177,6 +226,21 @@ export const SYSTEMS: SystemConfig[] = [
         color: 'group-hover:text-[#448AFF]',
         accentHex: '#448AFF',
         aliases: ['PLAYSTATION', 'PSX', 'PS', 'SONY PLAYSTATION'],
+        biosNeeded: true,
+        biosFileNames: ['scph5500.bin', 'scph5501.bin', 'scph5502.bin', 'scph1001.bin'],
+    },
+    {
+        key: 'PSP',
+        label: 'PlayStation Portable',
+        fullName: 'Sony PlayStation Portable',
+        slug: 'psp',
+        extensions: ['.iso', '.cso'],
+        core: 'ppsspp',
+        dbNames: ['Sony PSP', 'PSP'],
+        iconName: 'PSP',
+        color: 'group-hover:text-[#00B0FF]',
+        accentHex: '#00B0FF',
+        aliases: ['PSP', 'PLAYSTATION PORTABLE'],
     },
 
     // ============ NEC ============
@@ -192,6 +256,8 @@ export const SYSTEMS: SystemConfig[] = [
         color: 'group-hover:text-[#FF9100]',
         accentHex: '#FF9100',
         aliases: ['PC ENGINE', 'TURBOGRAFX-16', 'TURBOGRAFX', 'PCE', 'TG16'],
+        biosNeeded: true, // For CD games
+        biosFileNames: ['syscard3.pce'],
     },
 
     // ============ SNK ============
@@ -207,6 +273,9 @@ export const SYSTEMS: SystemConfig[] = [
         color: 'group-hover:text-[#C62828]',
         accentHex: '#C62828',
         aliases: ['NEO GEO', 'NEO-GEO', 'SNK NEO GEO'],
+        biosNeeded: true,
+        biosFileNames: ['neogeo.zip'],
+        biosLocation: 'rom_folder',
     },
     {
         key: 'NEOGEO_POCKET',
@@ -248,6 +317,8 @@ export const SYSTEMS: SystemConfig[] = [
         color: 'group-hover:text-[#FFC400]',
         accentHex: '#FFC400',
         aliases: ['ATARI LYNX'],
+        biosNeeded: true,
+        biosFileNames: ['lynxboot.img'],
     },
     {
         key: 'ATARI_2600',
@@ -315,5 +386,32 @@ export const SYSTEMS: SystemConfig[] = [
         color: 'group-hover:text-[#D500F9]',
         accentHex: '#D500F9',
         aliases: ['MAME', 'CPS1', 'CPS2', 'CPS3'],
+        biosNeeded: true,
+    },
+    {
+        key: 'C64',
+        label: 'Commodore 64',
+        fullName: 'Commodore 64',
+        slug: 'c64',
+        extensions: ['.d64', '.t64', '.tap', '.prg'],
+        core: 'vice_x64',
+        dbNames: ['Commodore 64'],
+        iconName: 'C64',
+        color: 'group-hover:text-[#795548]',
+        accentHex: '#795548',
+        aliases: ['C64', 'COMMODORE 64'],
+    },
+    {
+        key: 'DOS',
+        label: 'MS-DOS',
+        fullName: 'MS-DOS',
+        slug: 'dos',
+        extensions: ['.zip', '.exe', '.com', '.bat'],
+        core: 'dosbox_pure',
+        dbNames: ['MS-DOS', 'F-DOS', 'DOS'],
+        iconName: 'DOS',
+        color: 'group-hover:text-[#607D8B]',
+        accentHex: '#607D8B',
+        aliases: ['DOS', 'MSDOS', 'MS-DOS'],
     },
 ];

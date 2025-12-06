@@ -17,8 +17,9 @@ export type { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig };
 interface UseNostalgistOptions {
     system: string;
     romUrl: string;
+
     core?: string; // Core override
-    biosUrl?: string; // Custom BIOS URL
+    biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' }; // Custom BIOS URL
     initialState?: Blob | Uint8Array; // Initial save state
     getCanvasElement?: () => HTMLCanvasElement | null; // Function to get canvas element (must be in DOM before prepare)
     keyboardControls?: KeyboardMapping; // Custom keyboard mappings
@@ -27,6 +28,7 @@ interface UseNostalgistOptions {
     onReady?: () => void;
     onError?: (error: Error) => void;
     initialVolume?: number;
+    romFileName?: string;
 }
 
 export interface UseNostalgistReturn {
@@ -90,6 +92,7 @@ export const useNostalgist = ({
     onReady,
     onError,
     initialVolume = 100,
+    romFileName,
 }: UseNostalgistOptions): UseNostalgistReturn => {
     // 1. Core Emulator Logic (Lifecycle, Status, Canvas)
     const {
@@ -122,6 +125,7 @@ export const useNostalgist = ({
         gamepadBindings,
         retroAchievements,
         initialVolume,
+        romFileName,
         onReady,
         onError,
     });

@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import PlayerControls from './PlayerControls';
 import ToastContainer from './Overlays/ToastContainer';
 import { VirtualController } from './VirtualController';
@@ -13,6 +15,8 @@ import { useGamePlayer } from '../hooks/useGamePlayer';
 import { GamePlayerProps } from './types';
 
 export default function GamePlayer(props: GamePlayerProps) {
+    const [biosModalOpen, setBiosModalOpen] = useState(false);
+
     const {
         // Refs
         containerRef,
@@ -131,6 +135,7 @@ export default function GamePlayer(props: GamePlayerProps) {
                 systemColor={systemColor}
                 isFullscreen={isFullscreen}
                 canvasRef={canvasRef}
+                onSelectBios={props.onSelectBios ? () => setBiosModalOpen(true) : undefined}
             />
 
             <VirtualController
@@ -246,6 +251,12 @@ export default function GamePlayer(props: GamePlayerProps) {
                 maxSlots={props.maxSlots}
                 currentTier={props.currentTier}
                 onUpgrade={props.onUpgrade}
+
+                biosModalOpen={biosModalOpen}
+                setBiosModalOpen={setBiosModalOpen}
+                availableBios={props.availableBios}
+                currentBiosId={props.currentBiosId}
+                onSelectBios={props.onSelectBios}
             />
 
             {/* RetroAchievements Sidebar */}

@@ -12,6 +12,7 @@ interface GameCanvasProps {
     systemColor: string;
     isFullscreen: boolean;
     canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
+    onSelectBios?: () => void;
 }
 
 export default function GameCanvas({
@@ -22,7 +23,8 @@ export default function GameCanvas({
     onStart,
     systemColor,
     isFullscreen,
-    canvasRef
+    canvasRef,
+    onSelectBios
 }: GameCanvasProps) {
     const canvasContainerRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +73,7 @@ export default function GameCanvas({
                 isPaused={isPaused}
                 onStart={onStart}
                 systemColor={systemColor}
+                onSelectBios={onSelectBios}
             />
         </div>
     );

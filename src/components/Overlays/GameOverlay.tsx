@@ -12,6 +12,7 @@ interface GameOverlayProps {
   systemColor?: string;
   pendingSlot?: number; // If set, indicates a save will be loaded on start
   isLoadingSave?: boolean; // If true, shows loading indicator for save
+  onSelectBios?: () => void;
 }
 
 // Unified loading spinner component
@@ -29,6 +30,7 @@ export default function GameOverlay({
   systemColor = '#00FF41',
   pendingSlot,
   isLoadingSave,
+  onSelectBios,
 }: GameOverlayProps) {
   // Unified Loading Overlay - covers both emulator init and save fetching
   const isLoading = status === 'loading' || (status === 'ready' && isLoadingSave);
@@ -90,6 +92,18 @@ export default function GameOverlay({
             </span>
           )}
         </button>
+
+        {onSelectBios && (
+          <button
+            onClick={onSelectBios}
+            className="mt-6 flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: systemColor }} />
+            <span className="font-mono uppercase tracking-wider text-xs">
+              System Firmware
+            </span>
+          </button>
+        )}
       </div>
     );
   }

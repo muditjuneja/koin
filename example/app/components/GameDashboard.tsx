@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { GamePlayer, Cheat, RACredentials } from 'koin-deck-retro-player';
-import { Settings, Gamepad2, Upload, Play, Disc, User, X, ChevronDown, Github } from 'lucide-react';
+import { Settings, Gamepad2, Upload, Play, Disc, User, X, ChevronDown, Github, FileCode, Cpu } from 'lucide-react';
 import * as SaveManager from '../lib/save-manager';
 
 // System Data
@@ -13,13 +13,17 @@ const SYSTEMS = [
     { id: 'gb', name: 'Game Boy', shortName: 'GB', color: '#76FF03', core: 'gambatte' },
     { id: 'gbc', name: 'Game Boy Color', shortName: 'GBC', color: '#F50057', core: 'gambatte' },
     { id: 'gba', name: 'Game Boy Advance', shortName: 'GBA', color: '#304FFE', core: 'mgba' },
+    { id: 'nds', name: 'Nintendo DS', shortName: 'NDS', color: '#C51162', core: 'desmume' },
     { id: 'genesis', name: 'Sega Genesis', shortName: 'MD', color: '#2962FF', core: 'genesis_plus_gx' },
     { id: 'mastersystem', name: 'Master System', shortName: 'SMS', color: '#00B0FF', core: 'genesis_plus_gx' },
     { id: 'gamegear', name: 'Sega Game Gear', shortName: 'GG', color: '#1DE9B6', core: 'gearsystem' },
     { id: 'ps1', name: 'PlayStation', shortName: 'PS1', color: '#448AFF', core: 'pcsx_rearmed' },
+    { id: 'psp', name: 'PlayStation Portable', shortName: 'PSP', color: '#00B0FF', core: 'ppsspp' },
     { id: 'pcengine', name: 'PC Engine', shortName: 'PCE', color: '#FF9100', core: 'mednafen_pce_fast' },
     { id: 'neogeo', name: 'Neo Geo', shortName: 'NeoGeo', color: '#C62828', core: 'fbalpha2012_neogeo' },
     { id: 'atari2600', name: 'Atari 2600', shortName: '2600', color: '#E64A19', core: 'stella' },
+    { id: 'c64', name: 'Commodore 64', shortName: 'C64', color: '#795548', core: 'vice_x64' },
+    { id: 'dos', name: 'MS-DOS', shortName: 'DOS', color: '#607D8B', core: 'dosbox_pure' },
 ];
 
 const MOCK_CHEATS: Record<string, Cheat[]> = {
@@ -69,10 +73,12 @@ const NeoButton = ({ onClick, children, className = '', variant = 'primary', dis
 export default function GameDashboard() {
     const [selectedSystem, setSelectedSystem] = useState(SYSTEMS[0]);
     const [romFile, setRomFile] = useState<File | null>(null);
-    const [biosFile, setBiosFile] = useState<File | null>(null);
     const [romUrl, setRomUrl] = useState<string | null>(null);
-    const [biosUrl, setBiosUrl] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+
+    // Local BIOS Library
+    const [biosLibrary, setBiosLibrary] = useState<{ id: string; name: string; url: string; file: File }[]>([]);
+    const [currentBiosId, setCurrentBiosId] = useState<string | undefined>(undefined);
 
     // RA State
     const [raUser, setRaUser] = useState<RACredentials | null>(null);
@@ -89,9 +95,16 @@ export default function GameDashboard() {
     const handleBiosUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            setBiosFile(file);
             const url = URL.createObjectURL(file);
-            setBiosUrl(url);
+            const newBios = {
+                id: `local-bios-${Date.now()}`,
+                name: file.name,
+                url,
+                file
+            };
+            setBiosLibrary(prev => [...prev, newBios]);
+            // Auto-select the newly added BIOS
+            setCurrentBiosId(newBios.id);
         }
     };
 
@@ -107,9 +120,9 @@ export default function GameDashboard() {
     useEffect(() => {
         return () => {
             if (romUrl && !romUrl.startsWith('http')) URL.revokeObjectURL(romUrl);
-            if (biosUrl) URL.revokeObjectURL(biosUrl);
+            biosLibrary.forEach(b => URL.revokeObjectURL(b.url));
         };
-    }, [romUrl, biosUrl]);
+    }, [romUrl, biosLibrary]);
 
     // Save Handlers
     const handleSaveState = useCallback(async (slot: number, blob: Blob, screenshot?: string) => {
@@ -160,26 +173,41 @@ export default function GameDashboard() {
                     ◄ EJECT DISK
                 </button>
 
-                <GamePlayer
-                    system={selectedSystem.id}
+                {(() => {
+                    const currentRomUrl = romUrl || '';
 
-                    core={selectedSystem.core}
-                    romUrl={romUrl}
-                    romId={romFile?.name || romUrl || 'unknown'}
-                    title={romFile?.name || 'Game'}
-                    systemColor={selectedSystem.color}
-                    biosUrl={biosUrl || undefined}
-                    raUser={raUser || undefined}
-                    onExit={() => setIsPlaying(false)}
-                    onSaveState={handleSaveState}
-                    onLoadState={handleLoadState}
-                    onGetSaveSlots={handleGetSlots}
-                    onDeleteSaveState={handleDeleteSlot}
-                    onRALogin={handleRALogin}
-                    onRALogout={() => setRaUser(null)}
-                    cheats={MOCK_CHEATS[selectedSystem.id] || []}
-                    autoSaveInterval={30000}
-                />
+                    // Determine active BIOS URL based on selection
+                    const activeBios = biosLibrary.find(b => b.id === currentBiosId);
+                    const biosUrl = activeBios ? activeBios.url : undefined;
+
+                    return (
+                        <GamePlayer
+                            system={selectedSystem.id}
+                            core={selectedSystem.core}
+                            romUrl={currentRomUrl}
+                            romId={romFile?.name || currentRomUrl || 'unknown'}
+                            title={romFile?.name || 'Game'}
+                            systemColor={selectedSystem.color}
+
+                            // BIOS Props
+                            biosUrl={biosUrl}
+                            availableBios={biosLibrary.map(b => ({ id: b.id, name: b.name, description: 'Local file' }))}
+                            currentBiosId={currentBiosId}
+                            onSelectBios={setCurrentBiosId}
+
+                            raUser={raUser || undefined}
+                            onExit={() => setIsPlaying(false)}
+                            onSaveState={handleSaveState}
+                            onLoadState={handleLoadState}
+                            onGetSaveSlots={handleGetSlots}
+                            onDeleteSaveState={handleDeleteSlot}
+                            onRALogin={handleRALogin}
+                            onRALogout={() => setRaUser(null)}
+                            cheats={MOCK_CHEATS[selectedSystem.id] || []}
+                            autoSaveInterval={30000}
+                        />
+                    );
+                })()}
             </div>
         );
     }
@@ -250,79 +278,66 @@ export default function GameDashboard() {
 
                         <div className="px-6 pb-6 space-y-6">
 
-                            {/* System Selector */}
-                            <section>
-                                <label className="block font-black text-xs uppercase mb-1.5 flex items-center gap-2">
-                                    <Disc size={14} /> Select Platform
-                                </label>
-                                <div className="relative group">
-                                    <select
-                                        value={selectedSystem.id}
-                                        onChange={(e) => setSelectedSystem(SYSTEMS.find(s => s.id === e.target.value) || SYSTEMS[0])}
-                                        className="w-full appearance-none bg-white border-2 border-black p-3 font-bold uppercase cursor-pointer hover:bg-gray-50 focus:bg-[#FFD600]/10 outline-none transition-colors text-sm"
-                                    >
-                                        {SYSTEMS.map(sys => (
-                                            <option key={sys.id} value={sys.id}>
-                                                {sys.name} ({sys.shortName})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <ChevronDown size={16} />
-                                    </div>
-                                    <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[4px] translate-y-[4px] -z-10 bg-black group-hover:translate-x-[5px] group-hover:translate-y-[5px] transition-transform"></div>
-                                </div>
-                            </section>
-
-                            <hr className="border-t-2 border-dashed border-gray-300" />
-
-                            {/* ROM Loader */}
-                            <section className="space-y-3">
-                                <label className="block font-black text-xs uppercase mb-1.5 flex items-center gap-2">
-                                    <Upload size={14} /> Load Cartridge
-                                </label>
-
-                                <div className="relative group cursor-pointer">
-                                    <input
-                                        type="file"
-                                        accept=".nes,.snes,.smc,.gba,.bin,.gen,.md,.z64,.n64,.iso,.cue,.pbp"
-                                        onChange={handleFileUpload}
-                                        className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer"
-                                    />
-                                    <div className={`
-                                        border-2 border-black border-dashed p-6 text-center transition-all
-                                        ${romFile ? 'bg-[#76FF03]/20 border-solid' : 'bg-gray-50 hover:bg-white'}
-                                    `}>
-                                        <div className="flex flex-col items-center gap-1.5">
-                                            {romFile ? (
-                                                <>
-                                                    <span className="font-bold text-base break-all">{romFile.name}</span>
-                                                    <span className="text-[10px] font-mono bg-black text-white px-2 py-0.5">READY TO BOOT</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <span className="font-bold text-sm text-gray-400 group-hover:text-black">DROP FILE HERE</span>
-                                                    <span className="text-[10px] text-gray-400">OR CLICK TO BROWSE</span>
-                                                </>
-                                            )}
+                            <div className="space-y-4">
+                                {/* System Selector */}
+                                <section>
+                                    <label className="block font-black text-xs uppercase mb-1.5 flex items-center gap-2">
+                                        <Disc size={14} /> Select Platform
+                                    </label>
+                                    <div className="relative group">
+                                        <select
+                                            value={selectedSystem.id}
+                                            onChange={(e) => setSelectedSystem(SYSTEMS.find(s => s.id === e.target.value) || SYSTEMS[0])}
+                                            className="w-full appearance-none bg-white border-2 border-black p-3 font-bold uppercase cursor-pointer hover:bg-gray-50 focus:bg-[#FFD600]/10 outline-none transition-colors text-sm"
+                                        >
+                                            {SYSTEMS.map(sys => (
+                                                <option key={sys.id} value={sys.id}>
+                                                    {sys.name} ({sys.shortName})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                            <ChevronDown size={16} />
                                         </div>
+                                        <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[4px] translate-y-[4px] -z-10 bg-black group-hover:translate-x-[5px] group-hover:translate-y-[5px] transition-transform"></div>
                                     </div>
-                                    {/* Hard shadow for dropzone */}
-                                    <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[4px] translate-y-[4px] -z-10 bg-[#E0E0E0]"></div>
-                                </div>
+                                </section>
 
-                                {/* BIOS Loader (Mini) */}
-                                <div className="flex items-center gap-2">
-                                    <div className="relative overflow-hidden flex-1">
-                                        <input type="file" onChange={handleBiosUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                                        <button className="w-full text-[10px] font-bold border-2 border-black px-3 py-2 text-left hover:bg-gray-100 flex justify-between items-center bg-white">
-                                            <span className="truncate">{biosFile ? biosFile.name : 'LOAD BIOS (OPTIONAL)'}</span>
-                                            <Upload size={10} />
-                                        </button>
-                                        <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[2px] translate-y-[2px] -z-10 bg-black"></div>
+                                {/* ROM Loader */}
+                                <section>
+                                    <label className="block font-black text-xs uppercase mb-1.5 flex items-center gap-2">
+                                        <Upload size={14} /> Game Cartridge
+                                    </label>
+                                    <div className="relative group cursor-pointer h-24">
+                                        <input
+                                            type="file"
+                                            accept=".zip,.nes,.snes,.smc,.gba,.bin,.gen,.md,.z64,.n64,.iso,.cue,.pbp"
+                                            onChange={handleFileUpload}
+                                            className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer"
+                                        />
+                                        <div className={`
+                                            absolute inset-0 border-2 border-black border-dashed flex items-center justify-center text-center transition-all bg-white
+                                            ${romFile ? 'bg-[#76FF03]/10 border-solid' : 'hover:bg-gray-50'}
+                                        `}>
+                                            <div className="flex flex-col items-center gap-1">
+                                                {romFile ? (
+                                                    <>
+                                                        <FileCode size={20} className="text-[#76FF03]" />
+                                                        <span className="font-bold text-xs break-all px-4">{romFile.name}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="font-bold text-xs text-gray-400 group-hover:text-black">DROP ROM FILE</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="absolute inset-0 border-2 border-black pointer-events-none translate-x-[4px] translate-y-[4px] -z-10 bg-[#E0E0E0]"></div>
                                     </div>
-                                </div>
-                            </section>
+                                </section>
+
+                                {/* BIOS Selector */}
+                            </div>
 
                             {/* Actions */}
                             <div className="pt-2 flex flex-col gap-3">
@@ -349,6 +364,7 @@ export default function GameDashboard() {
 
                         </div>
                     </div>
+
 
                     {/* Footer Info */}
                     <div className="mt-6 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest space-y-4">

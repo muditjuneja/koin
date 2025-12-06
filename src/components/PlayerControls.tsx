@@ -48,7 +48,7 @@ const PlayerControls = memo(function PlayerControls({
 }: PlayerControlsProps & { loadDisabled?: boolean; saveDisabled?: boolean }) {
 
     return (
-        <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-black/80 backdrop-blur-sm border-t border-white/10 shrink-0">
+        <div className="w-full flex items-center justify-between gap-4 px-4 sm:px-6 py-3 bg-black/80 backdrop-blur-sm border-t border-white/10 shrink-0">
             {/* Left: Playback Controls */}
             <PlaybackControls
                 isPaused={isPaused}

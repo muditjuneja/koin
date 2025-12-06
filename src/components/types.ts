@@ -25,10 +25,19 @@ export interface GamePlayerProps {
     style?: React.CSSProperties;
     romId: string;
     romUrl: string;
+    romFileName?: string;
     system: string;
     title: string;
     core?: string;
-    biosUrl?: string;
+    biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' };
+
+    // Manual BIOS Selection
+    availableBios?: { id: string; name: string; description?: string }[];
+    currentBiosId?: string;
+    onSelectBios?: (biosId: string) => void;
+
+    onReady?: () => void;
+    onError?: (error: Error) => void;
     onExit?: () => void;
     systemColor?: string; // Console-specific color for theming
     initialSlot?: number; // Auto-load save from this slot on start

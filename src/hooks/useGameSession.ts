@@ -14,6 +14,7 @@ interface UseGameSessionProps extends GamePlayerProps {
 export function useGameSession(props: UseGameSessionProps) {
     const {
         romUrl,
+        romFileName,
         system,
         core,
         biosUrl,
@@ -21,6 +22,8 @@ export function useGameSession(props: UseGameSessionProps) {
         retroAchievementsConfig,
         onSessionStart,
         onSessionEnd,
+        onReady,
+        onError,
         canvasRef,
         showToast,
     } = props;
@@ -71,6 +74,7 @@ export function useGameSession(props: UseGameSessionProps) {
     const nostalgist = useNostalgist({
         system,
         romUrl,
+        romFileName,
         core,
         biosUrl,
         initialState: initialSaveState,
@@ -81,8 +85,12 @@ export function useGameSession(props: UseGameSessionProps) {
         onReady: () => {
             console.log('[GamePlayer] Emulator started');
             onSessionStart?.();
+            onReady?.();
         },
-        onError: (err) => console.error('[GamePlayer] Emulator error:', err),
+        onError: (err) => {
+            console.error('[GamePlayer] Emulator error:', err);
+            onError?.(err);
+        },
     });
 
     const {
