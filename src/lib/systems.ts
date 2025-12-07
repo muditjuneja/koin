@@ -169,7 +169,19 @@ export function normalizeSystemKey(name: string): string {
 export const SUPPORTED_EXTENSIONS = getSupportedExtensions();
 
 // Performance Optimization Tiers
-// Tier 1: Light systems - Run Ahead capable (Zero Lag)
+// ===============================
+// Systems are grouped by CPU complexity to apply optimal RetroArch settings.
+// See useEmulatorCore.ts getOptimizedConfig() for the actual settings applied.
+
+/**
+ * TIER 1: "Zero Lag" - Lightweight Systems
+ * ----------------------------------------
+ * These 8-bit and 16-bit systems have low CPU requirements in WASM,
+ * allowing us to enable Run-Ahead (frame prediction) for near-zero input latency.
+ * 
+ * Run-Ahead works by running the emulator ahead by 1 frame and using that
+ * result for display, effectively cutting 1 frame (~16ms) of input lag.
+ */
 export const PERFORMANCE_TIER_1_SYSTEMS = new Set([
     'NES', 'SNES', 'GENESIS', 'GB', 'GBC',
     'MASTER_SYSTEM', 'GAME_GEAR', 'PC_ENGINE',
@@ -178,8 +190,17 @@ export const PERFORMANCE_TIER_1_SYSTEMS = new Set([
     'WONDERSWAN', 'WONDERSWAN_COLOR'
 ]);
 
-// Tier 2: Heavy systems - Threaded Video required (Max Smoothness)
+/**
+ * TIER 2: "Max Smoothness" - Heavy Systems
+ * ----------------------------------------
+ * These 32-bit+ systems push WASM hard. Run-Ahead would cause stuttering.
+ * Instead, we optimize for smooth, consistent frame delivery:
+ * - Threaded video rendering to prevent UI freezes
+ * - Larger audio buffers to prevent crackling
+ * - Disabled manual rewind capture (saves RAM and CPU cycles)
+ */
 export const PERFORMANCE_TIER_2_SYSTEMS = new Set([
     'PS1', 'N64', 'GBA', 'SATURN', 'DREAMCAST',
     'NDS', 'PSP', 'ARCADE', 'DOS', 'NEOGEO'
 ]);
+

@@ -85,30 +85,54 @@ export function useEmulatorCore({
             return;
         }
 
-        // Helper to get optimized config based on system complexity
+        /**
+         * Performance Optimization Strategy
+         * ==================================
+         * RetroArch settings are tuned based on system complexity to balance
+         * input latency vs stability. Two tiers:
+         *
+         * TIER 1 ("Zero Lag") - Lightweight 8-bit/16-bit systems
+         *   - Run-Ahead: Predicts next frame to eliminate ~1 frame of input lag
+         *   - Single thread video: Keeps everything synchronized for tighter feel
+         *   - Small audio buffer: Minimizes audio latency
+         *   - Rewind: Enabled (low memory overhead)
+         *
+         * TIER 2 ("Max Smoothness") - Heavy 32-bit+ and arcade systems
+         *   - No Run-Ahead: Too CPU-intensive for complex emulation
+         *   - Threaded video: Prevents UI freezes during heavy rendering
+         *   - Larger audio buffer: Prevents crackling on demanding games
+         *   - Rewind: Disabled (saves significant RAM/CPU)
+         *
+         * @param sysKey - System identifier (e.g., 'NES', 'PS1')
+         * @returns RetroArch config overrides for optimal performance
+         */
         const getOptimizedConfig = (sysKey: string): Record<string, unknown> => {
             const sys = sysKey.toUpperCase();
 
+            // TIER 1: Lightweight systems - optimize for minimal input lag
+            // These systems have low CPU requirements, so we can afford Run-Ahead
             if (PERFORMANCE_TIER_1_SYSTEMS.has(sys)) {
                 return {
-                    run_ahead_enabled: true,
-                    run_ahead_frames: 1,
-                    run_ahead_secondary_instance: false, // Single instance for WASM efficiency
-                    video_threaded: false, // Tight sync for low latency
-                    audio_latency: 64, // Low latency audio
+                    run_ahead_enabled: true,      // Predict next frame to cut 1 frame of lag
+                    run_ahead_frames: 1,          // Only 1 frame - more would increase CPU load
+                    run_ahead_secondary_instance: false, // Single instance for WASM (dual is too heavy)
+                    video_threaded: false,        // Keep on main thread for tightest sync
+                    audio_latency: 64,            // 64ms buffer - good balance of latency vs stability
                 };
             }
 
+            // TIER 2: Heavy systems - optimize for smooth, stutter-free gameplay
+            // These systems push the CPU hard, so we prioritize stability over latency
             if (PERFORMANCE_TIER_2_SYSTEMS.has(sys)) {
                 return {
-                    run_ahead_enabled: false,
-                    video_threaded: true, // Offload video to separate thread
-                    audio_latency: 96, // Larger buffer to prevent crackling
-                    rewind_enable: false, // Disable rewind for heavy systems to save RAM
+                    run_ahead_enabled: false,     // Too expensive for N64/PS1 in WASM
+                    video_threaded: true,         // Offload to prevent UI blocking
+                    audio_latency: 96,            // Larger buffer prevents audio crackle
+                    rewind_enable: false,         // Save RAM - savestate buffer is expensive
                 };
             }
 
-            // Default / Balanced
+            // DEFAULT: Unknown systems get balanced settings
             return {
                 run_ahead_enabled: false,
                 video_threaded: true,
