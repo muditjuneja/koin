@@ -126,12 +126,25 @@ export function useEmulatorCore({
             // TIER 2: Heavy systems - optimize for smooth, stutter-free gameplay
             // These systems push the CPU hard, so we prioritize stability over latency
             if (PERFORMANCE_TIER_2_SYSTEMS.has(sys)) {
-                return {
-                    run_ahead_enabled: false,     // Too expensive for N64/PS1 in WASM
-                    video_threaded: true,         // Offload to prevent UI blocking
-                    audio_latency: 96,            // Larger buffer prevents audio crackle
-                    rewind_enable: false,         // Save RAM - savestate buffer is expensive
-                };
+                // Check if environment supports SharedArrayBuffer (required for threading)
+                const supportsThreading = typeof window !== 'undefined' && window.crossOriginIsolated;
+
+                if (supportsThreading) {
+                    return {
+                        run_ahead_enabled: false,     // Too expensive for N64/PS1 in WASM
+                        video_threaded: true,         // Offload to prevent UI blocking
+                        audio_latency: 96,            // Larger buffer prevents audio crackle
+                        rewind_enable: false,         // Save RAM - savestate buffer is expensive
+                    };
+                } else {
+                    console.warn('[Nostalgist] SharedArrayBuffer not available. Falling back to main-thread rendering for heavy system.');
+                    return {
+                        run_ahead_enabled: false,
+                        video_threaded: false,        // Fallback: Main thread (might stutter)
+                        audio_latency: 128,           // Increase latency further to handle main thread blocking
+                        rewind_enable: false,
+                    };
+                }
             }
 
             // DEFAULT: Unknown systems get balanced settings
