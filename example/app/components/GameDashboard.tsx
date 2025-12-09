@@ -165,16 +165,16 @@ export default function GameDashboard() {
     if (isPlaying && romUrl) {
         return (
             <div className="w-screen h-screen bg-black relative overflow-hidden">
-                {/* Back Button Overlay */}
+                {/* Back Button - Top right corner, away from virtual controls */}
                 <button
                     onClick={() => {
                         setIsPlaying(false);
                         setRomUrl(null);
                         setRomFile(null);
                     }}
-                    className="absolute top-4 left-4 z-50 bg-[#FFD600] text-black font-black uppercase text-xs px-3 py-1 border-2 border-white shadow-[2px_2px_0px_0px_#FFF] hover:translate-y-[1px] hover:shadow-none transition-all"
+                    className="absolute top-3 right-3 z-[60] bg-[#FFD600] text-black font-black uppercase text-[10px] px-2 py-1.5 border-2 border-black shadow-[2px_2px_0px_0px_#000] hover:translate-y-[1px] hover:shadow-none transition-all rounded"
                 >
-                    ◄ EJECT DISK
+                    ◄ EXIT
                 </button>
 
                 {(() => {

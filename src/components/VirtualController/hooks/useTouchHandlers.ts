@@ -77,9 +77,14 @@ export function useTouchHandlers({
       const touch = e.touches[0];
       touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
 
-      // Always allow button press first
+      // Always prevent default to avoid delays and context menus
       e.preventDefault();
       e.stopPropagation();
+
+      // Haptic feedback for tactile response
+      if (navigator.vibrate) {
+        navigator.vibrate(8); // Very short 8ms pulse
+      }
 
       if (isSystemButton) {
         onPress(buttonType);

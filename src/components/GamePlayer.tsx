@@ -288,7 +288,8 @@ export const GamePlayer = memo(function GamePlayer(
     return (
         <div
             ref={containerRef}
-            className={`absolute inset-0 bg-black overflow-hidden select-none flex flex-col ${props.className || ''}`}
+            className={`absolute inset-0 bg-black overflow-hidden select-none flex flex-col ${isFullscreen ? 'fixed !inset-0 z-[9999] w-screen h-screen touch-none' : ''
+                } ${props.className || ''}`}
             style={props.style}
         >
             {/* Game canvas area */}

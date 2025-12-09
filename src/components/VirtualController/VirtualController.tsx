@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useMobile } from '../../hooks/useMobile';
 import { getLayoutForSystem } from './layouts';
 import VirtualButton from './VirtualButton';
+import Dpad from './Dpad';
 import { ControlMapping } from '../../lib/controls/types';
 import { adjustButtonPosition, PositioningContext } from './positioning';
 import { useButtonPositions } from './useButtonPositions';
@@ -48,6 +49,10 @@ export default function VirtualController({
     }
     return btn.showInLandscape;
   });
+
+  // Separate D-pad buttons from other buttons
+  const DPAD_TYPES = ['up', 'down', 'left', 'right'];
+  const dpadButtons = visibleButtons.filter(btn => DPAD_TYPES.includes(btn.type));
 
   // Update container size and fullscreen state
   useEffect(() => {
@@ -154,7 +159,7 @@ export default function VirtualController({
         });
       }, 100);
     },
-    [isRunning, getKeyboardCode, dispatchKeyboardEvent]
+    [isRunning, getButtonKeyboardCode]
   );
 
   // Handle game buttons (D-pad, A, B, etc.) - hold for continuous input
@@ -169,10 +174,16 @@ export default function VirtualController({
       const keyboardCode = getButtonKeyboardCode(buttonType);
       if (!keyboardCode) return;
 
-      setPressedButtons((prev) => new Set(prev).add(buttonType));
+      // Optimization: Only update state if not already pressed to avoid re-renders
+      setPressedButtons((prev) => {
+        if (prev.has(buttonType)) return prev;
+        const next = new Set(prev);
+        next.add(buttonType);
+        return next;
+      });
       dispatchKeyboardEvent('keydown', keyboardCode);
     },
-    [isRunning, getKeyboardCode, dispatchKeyboardEvent]
+    [isRunning, getButtonKeyboardCode]
   );
 
   const handleRelease = useCallback(
@@ -184,14 +195,16 @@ export default function VirtualController({
       const keyboardCode = getButtonKeyboardCode(buttonType);
       if (!keyboardCode) return;
 
+      // Optimization: Only update state if actually pressed
       setPressedButtons((prev) => {
+        if (!prev.has(buttonType)) return prev;
         const next = new Set(prev);
         next.delete(buttonType);
         return next;
       });
       dispatchKeyboardEvent('keyup', keyboardCode);
     },
-    [getKeyboardCode, dispatchKeyboardEvent]
+    [getButtonKeyboardCode]
   );
 
   // Release all buttons when game stops (only non-system buttons)
@@ -206,6 +219,31 @@ export default function VirtualController({
     }
   }, [isRunning, pressedButtons, handleRelease]);
 
+  // Optimize: Memoize button configurations to prevent creating new objects on every render
+  // This ensures VirtualButton's React.memo works correctly when only 'isPressed' changes
+  const memoizedButtonElements = useMemo(() => {
+    // Use window dimensions if container size not yet calculated
+    const width = containerSize.width || (typeof window !== 'undefined' ? window.innerWidth : 0);
+    const height = containerSize.height || (typeof window !== 'undefined' ? window.innerHeight : 0);
+
+    const context: PositioningContext = {
+      isFullscreen: isFullscreenState,
+    };
+
+    return visibleButtons.map((buttonConfig) => {
+      const adjustedConfig = adjustButtonPosition(buttonConfig, context);
+      const customPosition = getPosition(buttonConfig.type, isLandscape);
+
+      return {
+        buttonConfig,
+        adjustedConfig,
+        customPosition,
+        width,
+        height
+      };
+    });
+  }, [visibleButtons, containerSize, isLandscape, isFullscreenState, getPosition]); // Dependencies that actually change layout
+
   // Don't render on desktop
   if (!isMobile) {
     return null;
@@ -216,31 +254,30 @@ export default function VirtualController({
     return null;
   }
 
+
   return (
     <div
       className="fixed inset-0 z-30 pointer-events-none"
       style={{ touchAction: 'none' }}
     >
-      {visibleButtons.map((buttonConfig) => {
-        // Use window dimensions if container size not yet calculated
-        const width = containerSize.width || (typeof window !== 'undefined' ? window.innerWidth : 0);
-        const height = containerSize.height || (typeof window !== 'undefined' ? window.innerHeight : 0);
+      {/* Unified D-pad */}
+      {dpadButtons.length > 0 && (
+        <Dpad
+          size={containerSize.width > containerSize.height ? 120 : 130}
+          x={12}
+          y={containerSize.width > containerSize.height ? 52 : 62}
+          containerWidth={containerSize.width || window.innerWidth}
+          containerHeight={containerSize.height || window.innerHeight}
+          controls={controls}
+          systemColor={systemColor}
+          isLandscape={isLandscape}
+        />
+      )}
 
-        // Create positioning context
-        const context: PositioningContext = {
-          isLandscape,
-          isFullscreen: isFullscreenState,
-          containerWidth: width,
-          containerHeight: height,
-        };
-
-        // Apply simple positioning adjustments
-        const adjustedConfig = adjustButtonPosition(buttonConfig, context);
-
-        // Get custom position if user has dragged this button (orientation-specific)
-        const customPosition = getPosition(buttonConfig.type, isLandscape);
-
-        return (
+      {/* Other buttons (A, B, Start, Select, etc.) */}
+      {memoizedButtonElements
+        .filter(({ buttonConfig }) => !DPAD_TYPES.includes(buttonConfig.type))
+        .map(({ buttonConfig, adjustedConfig, customPosition, width, height }) => (
           <VirtualButton
             key={buttonConfig.type}
             config={adjustedConfig}
@@ -255,8 +292,7 @@ export default function VirtualController({
             isLandscape={isLandscape}
             systemColor={systemColor}
           />
-        );
-      })}
+        ))}
     </div>
   );
 }

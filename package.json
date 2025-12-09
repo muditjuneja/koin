@@ -1,6 +1,6 @@
 {
     "name": "koin-deck-retro-player",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "description": "The premium cloud emulation engine for Koin Deck. High-performance, preservation-focused retro gaming in the browser.",
     "main": "dist/index.js",
     "module": "dist/index.mjs",

@@ -1,7 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useToast } from './useToast';
 import { useMobile } from './useMobile';
-import { isFullscreen as checkIsFullscreen, setupFullscreenListener } from '../components/VirtualController/utils/viewport';
+import {
+    isFullscreen as checkIsFullscreen,
+    setupFullscreenListener,
+    toggleFullscreen,
+} from '../components/VirtualController/utils/viewport';
 
 export function useGameUI() {
     const { isMobile } = useMobile();
@@ -14,6 +18,7 @@ export function useGameUI() {
     // Fullscreen handling
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [raSidebarOpen, setRaSidebarOpen] = useState(false);
+
     const checkFullscreen = useCallback(() => {
         const fullscreen = checkIsFullscreen();
         setIsFullscreen(fullscreen);
@@ -25,14 +30,18 @@ export function useGameUI() {
         return setupFullscreenListener(checkFullscreen);
     }, [checkFullscreen]);
 
-    const handleFullscreen = useCallback(() => {
+    const handleFullscreen = useCallback(async () => {
         if (!containerRef.current) return;
-        if (!document.fullscreenElement) {
-            containerRef.current.requestFullscreen().catch(err => {
-                console.error('Error attempting to enable fullscreen:', err);
-            });
-        } else {
-            document.exitFullscreen();
+
+        try {
+            const nativeWorked = await toggleFullscreen(containerRef.current);
+            // If native fullscreen didn't work (e.g. iOS Safari), toggle visual fullscreen
+            if (!nativeWorked && !checkIsFullscreen()) {
+                setIsFullscreen(prev => !prev);
+            }
+        } catch (err) {
+            console.warn('Fullscreen toggle failed, using visual fallback:', err);
+            setIsFullscreen(prev => !prev);
         }
     }, []);
 

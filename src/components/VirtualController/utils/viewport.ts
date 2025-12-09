@@ -47,25 +47,79 @@ export function setupFullscreenListener(
 }
 
 /**
+ * Request fullscreen on an element (with vendor prefixes)
+ * Falls back gracefully if not supported
+ */
+export async function enterFullscreen(element: HTMLElement): Promise<boolean> {
+  try {
+    if (element.requestFullscreen) {
+      await element.requestFullscreen();
+      return true;
+    } else if ((element as any).webkitRequestFullscreen) {
+      await (element as any).webkitRequestFullscreen();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn('Fullscreen request failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Exit fullscreen mode (with vendor prefixes)
+ */
+export async function exitFullscreenMode(): Promise<boolean> {
+  try {
+    if (document.exitFullscreen) {
+      await document.exitFullscreen();
+      return true;
+    } else if ((document as any).webkitExitFullscreen) {
+      await (document as any).webkitExitFullscreen();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn('Exit fullscreen failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Toggle fullscreen mode on an element
+ * Returns whether fullscreen is now active (or should be visually simulated)
+ */
+export async function toggleFullscreen(element: HTMLElement): Promise<boolean> {
+  if (isFullscreen()) {
+    const exited = await exitFullscreenMode();
+    return exited ? false : isFullscreen();
+  } else {
+    const entered = await enterFullscreen(element);
+    // If native fullscreen worked, return true; otherwise caller should use visual fallback
+    return entered;
+  }
+}
+
+/**
  * Detect if device is mobile
  * Uses multiple heuristics for reliable detection
  */
 export function isMobileDevice(): boolean {
   // Check for touch capability
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
+
   // Use matchMedia for pointer type (most reliable)
   const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-  
+
   // Use visual viewport if available (more accurate on mobile)
   const width = window.visualViewport?.width || window.innerWidth;
   const isSmallScreen = width < 768;
-  
+
   // Check user agent for mobile devices
   const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
-  
+
   // Mobile if has touch AND (coarse pointer OR small screen OR mobile UA)
   return hasTouch && (hasCoarsePointer || isSmallScreen || isMobileUA);
 }
@@ -114,24 +168,24 @@ export function createOrientationChangeHandler(
   maxRafs: number = 3
 ): () => void {
   let lastOrientation: 'portrait' | 'landscape' | null = null;
-  
+
   return () => {
     const currentOrientation = getCurrentOrientation();
-    
+
     // Only process if orientation actually changed (iOS can fire multiple times)
     if (lastOrientation === currentOrientation) {
       return;
     }
-    
+
     lastOrientation = currentOrientation;
-    
+
     // iOS Safari: orientationchange fires before layout is updated
     // Use multiple RAFs to wait for layout, with a fallback timeout
     let rafCount = 0;
-    
+
     const tryCallback = () => {
       rafCount++;
-      
+
       // If checkReady is provided, use it to verify layout is ready
       if (checkReady && !checkReady()) {
         // If layout not ready and we haven't tried too many times, try again
@@ -143,11 +197,11 @@ export function createOrientationChangeHandler(
         }
         return;
       }
-      
+
       // Layout is ready (or no check provided), execute callback
       callback();
     };
-    
+
     // Start with a small delay to let iOS start the transition
     setTimeout(() => {
       requestAnimationFrame(tryCallback);

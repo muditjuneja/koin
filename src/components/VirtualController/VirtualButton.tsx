@@ -129,9 +129,14 @@ const VirtualButton = React.memo(function VirtualButton({
         lineHeight: '1',
         // Semi-transparent in landscape mode
         opacity: isLandscape ? 0.85 : 1,
+        // Prevent context menu on long-press
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
         ...pressedStyle,
       }}
       aria-label={config.label}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {config.label}
     </button>

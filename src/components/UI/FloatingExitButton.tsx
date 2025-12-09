@@ -7,7 +7,7 @@ interface FloatingExitButtonProps {
 
 /**
  * Floating exit button that appears in fullscreen mode
- * Positioned in top-right corner for easy access
+ * Positioned at top-center to avoid collision with virtual controller buttons
  */
 export default function FloatingExitButton({ onClick, disabled = false }: FloatingExitButtonProps) {
     return (
@@ -15,22 +15,25 @@ export default function FloatingExitButton({ onClick, disabled = false }: Floati
             onClick={onClick}
             disabled={disabled}
             className={`
-        fixed top-4 right-4 z-50
-        w-12 h-12 rounded-lg
-        bg-black/90 backdrop-blur-sm
-        border-4 border-white
-        shadow-hard
-        flex items-center justify-center
-        transition-all duration-200
-        hover:bg-red-600/20 hover:border-red-400
-        active:translate-x-[3px] active:translate-y-[3px] active:shadow-none
-        disabled:opacity-40 disabled:cursor-not-allowed
-        touch-manipulation
-      `}
+                fixed top-3 left-1/2 -translate-x-1/2 z-50
+                w-11 h-11 rounded-lg
+                bg-black/90 backdrop-blur-sm
+                border-2 border-white/80
+                shadow-lg
+                flex items-center justify-center
+                transition-all duration-200
+                hover:bg-red-600/30 hover:border-red-400 hover:scale-105
+                active:scale-95
+                disabled:opacity-40 disabled:cursor-not-allowed
+                touch-manipulation
+            `}
+            style={{
+                paddingTop: 'env(safe-area-inset-top, 0px)'
+            }}
             aria-label="Exit fullscreen"
             title="Exit fullscreen"
         >
-            <X size={24} className="text-white" />
+            <X size={22} className="text-white" />
         </button>
     );
 }

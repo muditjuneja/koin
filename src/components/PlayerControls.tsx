@@ -1,10 +1,11 @@
 'use client';
 
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { PlayerControlsProps } from './types';
 import { PlaybackControls } from './PlayerControls/PlaybackControls';
 import { SaveLoadControls } from './PlayerControls/SaveLoadControls';
 import { SettingsControls } from './PlayerControls/SettingsControls';
+import MobileControlDrawer from './PlayerControls/MobileControlDrawer';
 
 const PlayerControls = memo(function PlayerControls({
     isPaused,
@@ -52,9 +53,9 @@ const PlayerControls = memo(function PlayerControls({
     onShaderChange,
 }: PlayerControlsProps & { loadDisabled?: boolean; saveDisabled?: boolean }) {
 
-    return (
-        <div className="w-full flex items-center justify-between gap-4 px-4 sm:px-6 py-3 bg-black/80 backdrop-blur-sm border-t border-white/10 shrink-0">
-            {/* Left: Playback Controls */}
+    // Shared controls content
+    const controlsContent = (
+        <>
             <PlaybackControls
                 isPaused={isPaused}
                 isRunning={isRunning}
@@ -75,7 +76,6 @@ const PlayerControls = memo(function PlayerControls({
                 hardcoreRestrictions={hardcoreRestrictions}
             />
 
-            {/* Center: Save/Load */}
             <SaveLoadControls
                 onSave={onSave}
                 onLoad={onLoad}
@@ -94,7 +94,6 @@ const PlayerControls = memo(function PlayerControls({
                 onAutoSaveToggle={onAutoSaveToggle}
             />
 
-            {/* Right: Settings & Exit */}
             <SettingsControls
                 onFullscreen={onFullscreen}
                 onControls={onControls}
@@ -115,7 +114,21 @@ const PlayerControls = memo(function PlayerControls({
                 raAchievementCount={raAchievementCount}
                 raIsIdentifying={raIsIdentifying}
             />
-        </div>
+        </>
+    );
+
+    return (
+        <>
+            {/* Mobile: FAB + Drawer */}
+            <MobileControlDrawer systemColor={systemColor}>
+                {controlsContent}
+            </MobileControlDrawer>
+
+            {/* Desktop: Static bar */}
+            <div className="hidden sm:flex w-full items-center justify-between gap-4 px-6 py-3 bg-black/80 backdrop-blur-sm border-t border-white/10 shrink-0">
+                {controlsContent}
+            </div>
+        </>
     );
 });
 

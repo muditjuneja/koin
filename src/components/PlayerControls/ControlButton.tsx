@@ -30,7 +30,8 @@ export const ControlButton = memo(function ControlButton({
     disabled = false,
     className = '',
     systemColor = '#00FF41',
-}: ControlButtonProps) {
+    iconSize = 20,
+}: ControlButtonProps & { iconSize?: number }) {
     return (
         <button
             onClick={onClick}
@@ -58,7 +59,7 @@ export const ControlButton = memo(function ControlButton({
             } : {}}
             title={label}
         >
-            <Icon size={20} className="transition-transform group-hover:scale-110" />
+            <Icon size={iconSize} className="transition-transform group-hover:scale-110" />
             <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">
                 {label}
             </span>
