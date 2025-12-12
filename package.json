@@ -1,6 +1,6 @@
 {
     "name": "koin.js",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "The drop-in React component for browser-based retro game emulation. 27 systems. Cloud saves. Zero backend required.",
     "main": "dist/index.js",
     "module": "dist/index.mjs",

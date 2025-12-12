@@ -25,4 +25,8 @@ module.exports = {
         },
     },
     plugins: [],
+    corePlugins: {
+        preflight: false,
+    },
+    important: '.koin-scope',
 }

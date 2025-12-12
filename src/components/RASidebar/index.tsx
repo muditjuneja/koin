@@ -120,7 +120,7 @@ export default function RASidebar({
   });
 
   return (
-    <>
+    <div className="koin-scope" style={{ display: 'contents' }}>
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
@@ -226,8 +226,6 @@ export default function RASidebar({
           </a>
         </div>
       </div>
-
-
-    </>
+    </div>
   );
 }

@@ -286,216 +286,218 @@ export const GamePlayer = memo(function GamePlayer(
     }, [handleToggleShortcuts, handleTogglePerformanceOverlay, handleToggleInputDisplay, handleToggleRecording, handleToggleMute, showShortcutsModal, resume]);
 
     return (
-        <div
-            ref={containerRef}
-            className={`absolute inset-0 bg-black overflow-hidden select-none flex flex-col ${isFullscreen ? 'fixed !inset-0 z-[9999] w-screen h-screen touch-none' : ''
-                } ${props.className || ''}`}
-            style={props.style}
-        >
-            {/* Game canvas area */}
-            <div className="flex-1 relative min-h-0">
-                <GameCanvas
-                    status={status}
-                    system={system}
-                    error={error}
-                    isPaused={isPaused}
-                    onStart={start}
-                    systemColor={systemColor}
-                    isFullscreen={isFullscreen}
-                    canvasRef={canvasRef}
-                    onSelectBios={props.onSelectBios ? handleBiosSelection : undefined}
-                />
-
-                {/* Virtual controller only shows in fullscreen to avoid overlaying page content */}
-                {isFullscreen && (
-                    <VirtualController
+        <div className="koin-scope" style={{ display: 'contents' }}>
+            <div
+                ref={containerRef}
+                className={`absolute inset-0 bg-black overflow-hidden select-none flex flex-col ${isFullscreen ? 'fixed !inset-0 z-[9999] w-screen h-screen touch-none' : ''
+                    } ${props.className || ''}`}
+                style={props.style}
+            >
+                {/* Game canvas area */}
+                <div className="flex-1 relative min-h-0">
+                    <GameCanvas
+                        status={status}
                         system={system}
-                        isRunning={status === 'running' || status === 'paused'}
-                        controls={controls}
-                        systemColor={systemColor}
-                    />
-                )}
-
-                {!isFullscreen && isMobile && (
-                    <FloatingFullscreenButton
-                        onClick={handleFullscreen}
-                        disabled={status === 'loading' || status === 'error'}
-                    />
-                )}
-
-                {isFullscreen && isMobile && (
-                    <FloatingExitButton
-                        onClick={handleFullscreen}
-                        disabled={status === 'loading' || status === 'error'}
-                    />
-                )}
-
-                {/* ===== UNIFIED TOP-RIGHT HUD ===== */}
-                <div className="absolute top-2 right-2 z-40 flex flex-col items-end gap-2 pointer-events-auto">
-                    {/* Recording Indicator */}
-                    <RecordingIndicator
-                        isRecording={isRecording}
-                        isPaused={isRecordingPaused}
-                        duration={recordingDuration}
-                        onPause={pauseRecording}
-                        onResume={resumeRecording}
-                        onStop={handleToggleRecording}
-                    />
-
-                    {/* Performance Overlay */}
-                    {settings.showPerformanceOverlay && (status === 'running' || status === 'paused') && (
-                        <PerformanceOverlay
-                            isVisible={true}
-                            coreName={props.core}
-                            systemColor={systemColor}
-                        />
-                    )}
-
-                    {/* Performance Mode Badge (Always visible when active) */}
-                    {isPerformanceMode && (status === 'running' || status === 'paused') && (
-                        <div
-                            className="bg-black/50 backdrop-blur-md px-2 py-1 rounded border border-white/10 flex items-center gap-1.5"
-                            style={{ borderColor: `${systemColor}40` }}
-                            title="High Performance Mode Active (Threaded Video)"
-                        >
-                            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: systemColor, boxShadow: `0 0 8px ${systemColor}` }} />
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-white/90">
-                                High Perf
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Input Display */}
-                    {settings.showInputDisplay && (status === 'running' || status === 'paused') && (
-                        <InputDisplay
-                            isVisible={true}
-                            system={system}
-                            systemColor={systemColor}
-                            position="inline"
-                        />
-                    )}
-                </div>
-            </div>
-
-            {/* Controls bar */}
-            {!isFullscreen && (
-                <div className="shrink-0 z-50">
-                    <PlayerControls
+                        error={error}
                         isPaused={isPaused}
-                        isRunning={status === 'running' || status === 'paused'}
-                        speed={speed}
-                        isRewinding={isRewinding}
-                        rewindBufferSize={rewindBufferSize}
-                        onPauseToggle={handlePauseToggle}
-                        onRestart={restart}
-                        onSave={handleSave}
-                        onLoad={handleLoad}
-                        onSpeedChange={setSpeed}
-                        onRewindStart={startRewind}
-                        onRewindStop={stopRewind}
-                        onScreenshot={handleScreenshot}
-                        onFullscreen={handleFullscreen}
-                        onControls={handleShowControls}
-                        onCheats={handleShowCheats}
-                        onRetroAchievements={handleShowRA}
-                        onExit={handleExitClick}
-                        disabled={status === 'loading' || status === 'error'}
-                        loadDisabled={status === 'loading' || status === 'error'}
-                        saveDisabled={status === 'ready'}
+                        onStart={start}
                         systemColor={systemColor}
-                        gamepadCount={connectedCount}
-                        onGamepadSettings={handleShowGamepadSettings}
-                        volume={volume}
-                        isMuted={muted} // Use local 'muted' which is aliased from 'isMuted'
-                        onVolumeChange={handleVolumeChange} // Wrapped
-                        onToggleMute={handleToggleMute} // Wrapped
-                        hardcoreRestrictions={hardcoreRestrictions}
-                        raConnected={!!props.raUser}
-                        raGameFound={!!props.raGame}
-                        raAchievementCount={props.raAchievements?.length}
-                        raIsIdentifying={props.raIsLoading}
-                        autoSaveEnabled={autoSaveEnabled}
-                        autoSavePaused={autoSavePaused}
-                        autoSaveState={autoSaveState}
-                        autoSaveProgress={autoSaveProgress}
-                        onAutoSaveToggle={handleAutoSaveToggle}
-                        onShowShortcuts={handleToggleShortcuts}
-                        onRecordToggle={handleToggleRecording}
-                        isRecording={isRecording}
-                        currentShader={effectiveShader as import('./UI/ShaderSelector').ShaderPresetId}
-                        onShaderChange={handleShaderChange} // Wrapped
+                        isFullscreen={isFullscreen}
+                        canvasRef={canvasRef}
+                        onSelectBios={props.onSelectBios ? handleBiosSelection : undefined}
                     />
+
+                    {/* Virtual controller only shows in fullscreen to avoid overlaying page content */}
+                    {isFullscreen && (
+                        <VirtualController
+                            system={system}
+                            isRunning={status === 'running' || status === 'paused'}
+                            controls={controls}
+                            systemColor={systemColor}
+                        />
+                    )}
+
+                    {!isFullscreen && isMobile && (
+                        <FloatingFullscreenButton
+                            onClick={handleFullscreen}
+                            disabled={status === 'loading' || status === 'error'}
+                        />
+                    )}
+
+                    {isFullscreen && isMobile && (
+                        <FloatingExitButton
+                            onClick={handleFullscreen}
+                            disabled={status === 'loading' || status === 'error'}
+                        />
+                    )}
+
+                    {/* ===== UNIFIED TOP-RIGHT HUD ===== */}
+                    <div className="absolute top-2 right-2 z-40 flex flex-col items-end gap-2 pointer-events-auto">
+                        {/* Recording Indicator */}
+                        <RecordingIndicator
+                            isRecording={isRecording}
+                            isPaused={isRecordingPaused}
+                            duration={recordingDuration}
+                            onPause={pauseRecording}
+                            onResume={resumeRecording}
+                            onStop={handleToggleRecording}
+                        />
+
+                        {/* Performance Overlay */}
+                        {settings.showPerformanceOverlay && (status === 'running' || status === 'paused') && (
+                            <PerformanceOverlay
+                                isVisible={true}
+                                coreName={props.core}
+                                systemColor={systemColor}
+                            />
+                        )}
+
+                        {/* Performance Mode Badge (Always visible when active) */}
+                        {isPerformanceMode && (status === 'running' || status === 'paused') && (
+                            <div
+                                className="bg-black/50 backdrop-blur-md px-2 py-1 rounded border border-white/10 flex items-center gap-1.5"
+                                style={{ borderColor: `${systemColor}40` }}
+                                title="High Performance Mode Active (Threaded Video)"
+                            >
+                                <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: systemColor, boxShadow: `0 0 8px ${systemColor}` }} />
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-white/90">
+                                    High Perf
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Input Display */}
+                        {settings.showInputDisplay && (status === 'running' || status === 'paused') && (
+                            <InputDisplay
+                                isVisible={true}
+                                system={system}
+                                systemColor={systemColor}
+                                position="inline"
+                            />
+                        )}
+                    </div>
                 </div>
-            )}
 
-            {/* Modals */}
-            <ShortcutsModal
-                isOpen={showShortcutsModal}
-                onClose={() => {
-                    setShowShortcutsModal(false);
-                    resume();
-                }}
-                systemColor={systemColor}
-            />
+                {/* Controls bar */}
+                {!isFullscreen && (
+                    <div className="shrink-0 z-50">
+                        <PlayerControls
+                            isPaused={isPaused}
+                            isRunning={status === 'running' || status === 'paused'}
+                            speed={speed}
+                            isRewinding={isRewinding}
+                            rewindBufferSize={rewindBufferSize}
+                            onPauseToggle={handlePauseToggle}
+                            onRestart={restart}
+                            onSave={handleSave}
+                            onLoad={handleLoad}
+                            onSpeedChange={setSpeed}
+                            onRewindStart={startRewind}
+                            onRewindStop={stopRewind}
+                            onScreenshot={handleScreenshot}
+                            onFullscreen={handleFullscreen}
+                            onControls={handleShowControls}
+                            onCheats={handleShowCheats}
+                            onRetroAchievements={handleShowRA}
+                            onExit={handleExitClick}
+                            disabled={status === 'loading' || status === 'error'}
+                            loadDisabled={status === 'loading' || status === 'error'}
+                            saveDisabled={status === 'ready'}
+                            systemColor={systemColor}
+                            gamepadCount={connectedCount}
+                            onGamepadSettings={handleShowGamepadSettings}
+                            volume={volume}
+                            isMuted={muted} // Use local 'muted' which is aliased from 'isMuted'
+                            onVolumeChange={handleVolumeChange} // Wrapped
+                            onToggleMute={handleToggleMute} // Wrapped
+                            hardcoreRestrictions={hardcoreRestrictions}
+                            raConnected={!!props.raUser}
+                            raGameFound={!!props.raGame}
+                            raAchievementCount={props.raAchievements?.length}
+                            raIsIdentifying={props.raIsLoading}
+                            autoSaveEnabled={autoSaveEnabled}
+                            autoSavePaused={autoSavePaused}
+                            autoSaveState={autoSaveState}
+                            autoSaveProgress={autoSaveProgress}
+                            onAutoSaveToggle={handleAutoSaveToggle}
+                            onShowShortcuts={handleToggleShortcuts}
+                            onRecordToggle={handleToggleRecording}
+                            isRecording={isRecording}
+                            currentShader={effectiveShader as import('./UI/ShaderSelector').ShaderPresetId}
+                            onShaderChange={handleShaderChange} // Wrapped
+                        />
+                    </div>
+                )}
 
-            <GameModals
-                controlsModalOpen={controlsModalOpen}
-                setControlsModalOpen={setControlsModalOpen}
-                controls={controls}
-                saveControls={saveControls}
-                system={system}
-                onResume={resume}
-
-                gamepadModalOpen={gamepadModalOpen}
-                setGamepadModalOpen={setGamepadModalOpen}
-                gamepads={gamepads}
-                systemColor={systemColor}
-
-                cheatsModalOpen={cheatsModalOpen}
-                setCheatsModalOpen={setCheatsModalOpen}
-                cheats={cheats}
-                activeCheats={activeCheats}
-                onToggleCheat={handleToggleCheat}
-
-                saveModalOpen={saveModalOpen}
-                setSaveModalOpen={setSaveModalOpen}
-                saveModalMode={saveModalMode}
-                saveSlots={saveSlots}
-                isSlotLoading={isSlotLoading}
-                actioningSlot={actioningSlot}
-                onSlotSelect={handleSlotSelect}
-                onSlotDelete={handleSlotDelete}
-                maxSlots={props.maxSlots}
-                currentTier={props.currentTier}
-                onUpgrade={props.onUpgrade}
-
-                biosModalOpen={biosModalOpen}
-                setBiosModalOpen={setBiosModalOpen}
-                availableBios={props.availableBios}
-                currentBiosId={props.currentBiosId}
-                onSelectBios={props.onSelectBios}
-            />
-
-            {/* RASidebar */}
-            {!isMobile && (
-                <RASidebar
-                    isOpen={raSidebarOpen}
-                    onClose={() => setRaSidebarOpen(false)}
-                    isLoggedIn={!!props.raUser}
-                    credentials={props.raUser || null}
-                    isLoading={props.raIsLoading || false}
-                    error={props.raError}
-                    onLogin={props.onRALogin || (async () => false)}
-                    onLogout={props.onRALogout || (() => { })}
-                    hardcoreEnabled={props.retroAchievementsConfig?.hardcore || false}
-                    onHardcoreChange={props.onRAHardcoreChange || (() => { })}
-                    currentGame={props.raGame || null}
-                    achievements={props.raAchievements || []}
-                    unlockedIds={props.raUnlockedAchievements || new Set()}
+                {/* Modals */}
+                <ShortcutsModal
+                    isOpen={showShortcutsModal}
+                    onClose={() => {
+                        setShowShortcutsModal(false);
+                        resume();
+                    }}
+                    systemColor={systemColor}
                 />
-            )}
 
-            <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+                <GameModals
+                    controlsModalOpen={controlsModalOpen}
+                    setControlsModalOpen={setControlsModalOpen}
+                    controls={controls}
+                    saveControls={saveControls}
+                    system={system}
+                    onResume={resume}
+
+                    gamepadModalOpen={gamepadModalOpen}
+                    setGamepadModalOpen={setGamepadModalOpen}
+                    gamepads={gamepads}
+                    systemColor={systemColor}
+
+                    cheatsModalOpen={cheatsModalOpen}
+                    setCheatsModalOpen={setCheatsModalOpen}
+                    cheats={cheats}
+                    activeCheats={activeCheats}
+                    onToggleCheat={handleToggleCheat}
+
+                    saveModalOpen={saveModalOpen}
+                    setSaveModalOpen={setSaveModalOpen}
+                    saveModalMode={saveModalMode}
+                    saveSlots={saveSlots}
+                    isSlotLoading={isSlotLoading}
+                    actioningSlot={actioningSlot}
+                    onSlotSelect={handleSlotSelect}
+                    onSlotDelete={handleSlotDelete}
+                    maxSlots={props.maxSlots}
+                    currentTier={props.currentTier}
+                    onUpgrade={props.onUpgrade}
+
+                    biosModalOpen={biosModalOpen}
+                    setBiosModalOpen={setBiosModalOpen}
+                    availableBios={props.availableBios}
+                    currentBiosId={props.currentBiosId}
+                    onSelectBios={props.onSelectBios}
+                />
+
+                {/* RASidebar */}
+                {!isMobile && (
+                    <RASidebar
+                        isOpen={raSidebarOpen}
+                        onClose={() => setRaSidebarOpen(false)}
+                        isLoggedIn={!!props.raUser}
+                        credentials={props.raUser || null}
+                        isLoading={props.raIsLoading || false}
+                        error={props.raError}
+                        onLogin={props.onRALogin || (async () => false)}
+                        onLogout={props.onRALogout || (() => { })}
+                        hardcoreEnabled={props.retroAchievementsConfig?.hardcore || false}
+                        onHardcoreChange={props.onRAHardcoreChange || (() => { })}
+                        currentGame={props.raGame || null}
+                        achievements={props.raAchievements || []}
+                        unlockedIds={props.raUnlockedAchievements || new Set()}
+                    />
+                )}
+
+                <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+            </div>
         </div>
     );
 });
