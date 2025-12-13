@@ -14,6 +14,7 @@ interface UseGameSessionProps extends GamePlayerProps {
 export function useGameSession(props: UseGameSessionProps) {
     const {
         romUrl,
+        romId,
         romFileName,
         system,
         core,
@@ -74,6 +75,7 @@ export function useGameSession(props: UseGameSessionProps) {
     const nostalgist = useNostalgist({
         system,
         romUrl,
+        romId,
         romFileName,
         core,
         biosUrl,

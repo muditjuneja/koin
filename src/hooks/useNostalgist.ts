@@ -31,6 +31,7 @@ interface UseNostalgistOptions {
     initialVolume?: number;
     romFileName?: string;
     shader?: string; // CRT shader preset (e.g., 'crt/crt-lottes')
+    romId?: string;
 }
 
 export interface UseNostalgistReturn {
@@ -98,6 +99,7 @@ export const useNostalgist = ({
     initialVolume = 100,
     romFileName,
     shader,
+    romId,
 }: UseNostalgistOptions): UseNostalgistReturn => {
     // 0. System Analysis
     // Check if system is heavy (Tier 2) to disable expensive features like manual rewind capture
@@ -129,6 +131,7 @@ export const useNostalgist = ({
     } = useEmulatorCore({
         system,
         romUrl,
+        romId,
         core,
         biosUrl,
         initialState,

@@ -8,12 +8,13 @@ import {
     buildRetroArchConfig
 } from '../../lib/controls';
 import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig } from './types';
-
+import { getCachedRom, fetchAndCacheRom } from '../../lib/rom-cache';
 
 
 interface UseEmulatorCoreProps {
     system: string;
     romUrl: string;
+    romId?: string;
     core?: string;
     biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' };
     initialState?: Blob | Uint8Array;
@@ -54,6 +55,7 @@ interface UseEmulatorCoreReturn {
 export function useEmulatorCore({
     system,
     romUrl,
+    romId,
     core: coreOverride,
     biosUrl,
     initialState,
@@ -163,21 +165,31 @@ export function useEmulatorCore({
 
             const core = coreOverride || getCore(system);
 
-            // Standard Nostalgist loading
-            // We pass the URL directly. Nostalgist handles fetching.
-            // Note: If URL is very long (>100 chars segments), Nostalgist might fail to detect it as a URL.
-            // We rely on the user's assurance that this won't happen.
-
-            // If romFileName is provided (e.g. for Arcade), we try to construct a ResolvableFile-like object
-            // if Nostalgist supports it, OR we just pass the URL and hope Nostalgist infers name correctly.
-            // However, typical Nostalgist usage is just `rom: romUrl`.
-
-            // If we want to support 'renaming' (e.g. for mapped Arcade games), we'd need to fetch manually.
             let romOption: any = romUrl;
 
-            // If romFileName is provided, handle it (important for Arcade/NeoGeo)
-            if (romFileName) {
-                // If it's a direct file object or compatible
+            // Attempt to load from cache if romId is provided
+            if (romId) {
+                try {
+                    let blob = await getCachedRom(romId);
+
+                    if (!blob) {
+                        console.log(`[Nostalgist] Fetching and caching ROM ${romId}`);
+                        blob = await fetchAndCacheRom(romId, romUrl);
+                    } else {
+                        console.log(`[Nostalgist] Loaded ROM ${romId} from cache`);
+                    }
+
+                    if (blob) {
+                        romOption = {
+                            fileName: romFileName || 'rom.bin',
+                            fileContent: blob
+                        };
+                    }
+                } catch (err) {
+                    console.error('[Nostalgist] Cache/Fetch error, falling back to direct URL:', err);
+                    // Fallback to URL is implicit (romOption = romUrl)
+                }
+            } else if (romFileName) {
                 romOption = { fileName: romFileName, fileContent: romUrl };
             }
 
@@ -205,8 +217,6 @@ export function useEmulatorCore({
 
             // Get canvas element at prepare time (not hook initialization time)
             const canvasElement = getCanvasElement?.() || '';
-
-            // ... (rest of config)
 
             const prepareOptions: any = {
                 core,
