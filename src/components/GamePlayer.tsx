@@ -18,6 +18,7 @@ import { useGamePlayer } from '../hooks/useGamePlayer';
 import { usePlayerPersistence } from '../hooks/usePlayerPersistence';
 import { GamePlayerProps } from './types';
 import { KeyboardMapping } from '../lib/controls';
+import { sendTelemetry } from '../lib/telemetry';
 
 export const GamePlayer = memo(function GamePlayer(
     props: GamePlayerProps & {
@@ -27,6 +28,15 @@ export const GamePlayer = memo(function GamePlayer(
 ) {
     // -- Persistence Hook --
     const { settings, updateSettings, isLoaded: settingsLoaded } = usePlayerPersistence();
+
+    // -- Telemetry --
+    useEffect(() => {
+        sendTelemetry('game_start', {
+            system: props.system,
+            core: props.core,
+            game: props.title || 'unknown'
+        });
+    }, [props.system, props.core, props.title]);
 
     // -- Internal State --
     const [biosModalOpen, setBiosModalOpen] = useState(false);
@@ -140,6 +150,15 @@ export const GamePlayer = memo(function GamePlayer(
         status,
         isPerformanceMode,
     } = nostalgist;
+
+    // -- Debug: High Performance Mode --
+    useEffect(() => {
+        if (status === 'running') {
+            console.log('[Koin Debug] Status:', status);
+            console.log('[Koin Debug] isPerformanceMode:', isPerformanceMode);
+            console.log('[Koin Debug] crossOriginIsolated:', typeof window !== 'undefined' ? window.crossOriginIsolated : 'N/A');
+        }
+    }, [status, isPerformanceMode]);
 
     // Sync volume from persistence on load
     useEffect(() => {
@@ -362,6 +381,18 @@ export const GamePlayer = memo(function GamePlayer(
                                 <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: systemColor, boxShadow: `0 0 8px ${systemColor}` }} />
                                 <span className="text-[10px] uppercase font-bold tracking-wider text-white/90">
                                     High Perf
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Debug: Low Perf Indicator (Temporary) */}
+                        {!isPerformanceMode && (status === 'running' || status === 'paused') && (
+                            <div
+                                className="bg-red-900/80 backdrop-blur-md px-2 py-1 rounded border border-red-500/50 flex items-center gap-1.5"
+                                title="Standard Mode (Single Threaded)"
+                            >
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-red-200">
+                                    Standard ({typeof window !== 'undefined' && window.crossOriginIsolated ? 'Isolated' : 'Not Isolated'})
                                 </span>
                             </div>
                         )}
