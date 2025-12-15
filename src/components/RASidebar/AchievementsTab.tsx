@@ -3,6 +3,7 @@
 import React from 'react';
 import { Trophy, ExternalLink, CheckCircle } from 'lucide-react';
 import { RAGameExtended, RAAchievement, getAchievementBadgeUrl } from '../../lib/retroachievements';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 export interface AchievementsTabProps {
   currentGame: RAGameExtended | null;
@@ -28,14 +29,16 @@ export default function AchievementsTab({
   earnedPoints,
   totalPoints,
 }: AchievementsTabProps) {
+  const t = useKoinTranslation();
+
   if (!currentGame) {
     return (
       <div className="p-6 text-center">
         <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800 flex items-center justify-center">
           <Trophy className="text-gray-600" size={24} />
         </div>
-        <p className="text-sm text-gray-400">No game loaded</p>
-        <p className="text-xs text-gray-500 mt-1">Load a game to see achievements</p>
+        <p className="text-sm text-gray-400">{t.retroAchievements.noGame}</p>
+        <p className="text-xs text-gray-500 mt-1">{t.retroAchievements.loadGame}</p>
       </div>
     );
   }
@@ -46,8 +49,8 @@ export default function AchievementsTab({
         <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800 flex items-center justify-center">
           <Trophy className="text-gray-600" size={24} />
         </div>
-        <p className="text-sm text-gray-400">No achievements found</p>
-        <p className="text-xs text-gray-500 mt-1">This game may not be supported</p>
+        <p className="text-sm text-gray-400">{t.retroAchievements.noAchievements}</p>
+        <p className="text-xs text-gray-500 mt-1">{t.retroAchievements.notSupported}</p>
       </div>
     );
   }
@@ -100,11 +103,11 @@ export default function AchievementsTab({
               key={f}
               onClick={() => setFilter(f)}
               className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${filter === f
-                  ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
-                  : 'border-gray-700 text-gray-500 hover:text-gray-300'
+                ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
+                : 'border-gray-700 text-gray-500 hover:text-gray-300'
                 }`}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {t.retroAchievements.filters[f]}
             </button>
           ))}
         </div>
@@ -127,8 +130,8 @@ export default function AchievementsTab({
                   src={getAchievementBadgeUrl(achievement.BadgeName, !unlocked)}
                   alt=""
                   className={`w-8 h-8 rounded border ${unlocked
-                      ? 'border-yellow-500/50'
-                      : 'border-gray-700 opacity-40 grayscale'
+                    ? 'border-yellow-500/50'
+                    : 'border-gray-700 opacity-40 grayscale'
                     }`}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
@@ -153,8 +156,8 @@ export default function AchievementsTab({
 
               {/* Points */}
               <div className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${unlocked
-                  ? 'bg-yellow-500/20 text-yellow-400'
-                  : 'bg-gray-800 text-gray-500'
+                ? 'bg-yellow-500/20 text-yellow-400'
+                : 'bg-gray-800 text-gray-500'
                 }`}>
                 {achievement.Points}
               </div>
@@ -165,7 +168,7 @@ export default function AchievementsTab({
 
       {/* Footer */}
       <div className="p-2 text-[10px] text-gray-500 text-center border-t border-gray-800/50">
-        {progress}% complete • {totalPoints - earnedPoints} pts remaining
+        {progress}% complete • {t.retroAchievements.ptsRemaining.replace('{{count}}', (totalPoints - earnedPoints).toString())}
       </div>
     </div>
   );

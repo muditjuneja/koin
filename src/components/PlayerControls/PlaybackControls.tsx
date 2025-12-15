@@ -5,6 +5,7 @@ import SpeedMenu from '../UI/SpeedMenu';
 import VolumeControl from '../UI/VolumeControl';
 import HardcoreTooltip from '../UI/HardcoreTooltip';
 import { SpeedMultiplier } from '../../hooks/emulator/types';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface PlaybackControlsProps {
     isPaused: boolean;
@@ -48,19 +49,26 @@ export const PlaybackControls = memo(function PlaybackControls({
     systemColor = '#00FF41',
     hardcoreRestrictions,
 }: PlaybackControlsProps) {
+    const t = useKoinTranslation();
     const hasRewindHistory = rewindBufferSize > 0;
 
     return (
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-center gap-4 w-full sm:w-auto sm:flex-nowrap sm:gap-3 flex-shrink-0">
             <ControlButton
                 onClick={onPauseToggle}
                 icon={(!isRunning || isPaused) ? Play : Pause}
-                label={(!isRunning || isPaused) ? 'Play' : 'Pause'}
+                label={(!isRunning || isPaused) ? t.controls.play : t.controls.pause}
                 active={isPaused}
                 disabled={disabled}
                 systemColor={systemColor}
             />
-            <ControlButton onClick={onRestart} icon={RotateCcw} label="Reset" disabled={disabled} systemColor={systemColor} />
+            <ControlButton
+                onClick={onRestart}
+                icon={RotateCcw}
+                label={t.controls.reset}
+                disabled={disabled}
+                systemColor={systemColor}
+            />
 
             {/* Speed Control */}
             <SpeedMenu speed={speed} onSpeedChange={onSpeedChange} disabled={disabled} />
@@ -73,7 +81,7 @@ export const PlaybackControls = memo(function PlaybackControls({
                     onTouchStart={hasRewindHistory && hardcoreRestrictions?.canUseRewind !== false ? onRewindStart : undefined}
                     onTouchEnd={hasRewindHistory && hardcoreRestrictions?.canUseRewind !== false ? onRewindStop : undefined}
                     icon={Rewind}
-                    label="Rewind"
+                    label={t.controls.rewind}
                     active={isRewinding}
                     disabled={disabled || !hasRewindHistory || hardcoreRestrictions?.canUseRewind === false}
                     systemColor={systemColor}
@@ -85,11 +93,11 @@ export const PlaybackControls = memo(function PlaybackControls({
                 {/* Tooltips */}
                 <HardcoreTooltip
                     show={hardcoreRestrictions?.canUseRewind === false}
-                    message={hardcoreRestrictions?.isHardcore ? "Disabled in Hardcore mode" : "Not supported on this console"}
+                    message={hardcoreRestrictions?.isHardcore ? t.common.disabledInHardcore : t.common.notSupported}
                 />
                 {hardcoreRestrictions?.canUseRewind !== false && !hasRewindHistory && (
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black/90 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                        Play for a few seconds to enable rewind
+                        {t.common.playToEnableRewind}
                     </div>
                 )}
             </div>

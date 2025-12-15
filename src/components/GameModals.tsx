@@ -3,6 +3,7 @@ import GamepadMapper from './Modals/GamepadMapper';
 import CheatModal from './Modals/CheatModal';
 import SavedSlotModal from './Modals/SaveSlotModal';
 import BiosSelectionModal from './Modals/BiosSelectionModal';
+import SettingsModal from './Modals/SettingsModal';
 import { KeyboardMapping } from '../lib/controls';
 import { SaveSlot } from './types';
 
@@ -44,6 +45,12 @@ interface GameModalsProps {
     availableBios?: { id: string; name: string; description?: string }[];
     currentBiosId?: string;
     onSelectBios?: (biosId: string) => void;
+
+    // Settings Modal
+    settingsModalOpen: boolean;
+    setSettingsModalOpen: (open: boolean) => void;
+    currentLanguage: string;
+    onLanguageChange: (lang: 'en' | 'es' | 'fr') => void;
 }
 
 export default function GameModals({
@@ -82,6 +89,11 @@ export default function GameModals({
     availableBios,
     currentBiosId,
     onSelectBios,
+
+    settingsModalOpen,
+    setSettingsModalOpen,
+    currentLanguage,
+    onLanguageChange,
 }: GameModalsProps) {
     return (
         <>
@@ -146,6 +158,17 @@ export default function GameModals({
                     setBiosModalOpen(false);
                     onResume();
                 }}
+                systemColor={systemColor}
+            />
+
+            <SettingsModal
+                isOpen={settingsModalOpen}
+                onClose={() => {
+                    setSettingsModalOpen(false);
+                    onResume();
+                }}
+                currentLanguage={currentLanguage}
+                onLanguageChange={onLanguageChange}
                 systemColor={systemColor}
             />
         </>

@@ -2,6 +2,7 @@
 
 import { memo, useState } from 'react';
 import { Circle, Pause, Play, Square, Download } from 'lucide-react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface PlayerHUDProps {
     systemColor?: string;
@@ -39,6 +40,7 @@ const PlayerHUD = memo(function PlayerHUD({
     onResumeRecording,
     onStopRecording,
 }: PlayerHUDProps) {
+    const t = useKoinTranslation();
     const [fps, setFps] = useState(60);
     const [isHoveredRecording, setIsHoveredRecording] = useState(false);
 
@@ -90,7 +92,7 @@ const PlayerHUD = memo(function PlayerHUD({
                         {/* Duration */}
                         <div className="flex flex-col">
                             <span className="text-xs font-bold" style={{ color: isRecordingPaused ? '#FFA500' : '#FF3333' }}>
-                                {isRecordingPaused ? 'PAUSED' : 'REC'}
+                                {isRecordingPaused ? t.overlays.recording.paused : 'REC'}
                             </span>
                             <span className="text-[10px] text-white/60">{formatDuration(recordingDuration)}</span>
                         </div>
@@ -99,15 +101,15 @@ const PlayerHUD = memo(function PlayerHUD({
                         {isHoveredRecording && (
                             <div className="flex items-center gap-1 ml-2 pl-2 border-l border-white/20">
                                 {isRecordingPaused ? (
-                                    <button onClick={onResumeRecording} className="p-1.5 rounded hover:bg-white/20" title="Resume">
+                                    <button onClick={onResumeRecording} className="p-1.5 rounded hover:bg-white/20" title={t.overlays.recording.resume}>
                                         <Play size={14} className="text-orange-400" fill="#FFA500" />
                                     </button>
                                 ) : (
-                                    <button onClick={onPauseRecording} className="p-1.5 rounded hover:bg-white/20" title="Pause">
+                                    <button onClick={onPauseRecording} className="p-1.5 rounded hover:bg-white/20" title={t.overlays.recording.pause}>
                                         <Pause size={14} className="text-white/80" />
                                     </button>
                                 )}
-                                <button onClick={onStopRecording} className="p-1.5 rounded hover:bg-red-500/30 flex items-center gap-1" title="Stop & Save">
+                                <button onClick={onStopRecording} className="p-1.5 rounded hover:bg-red-500/30 flex items-center gap-1" title={t.overlays.recording.stop}>
                                     <Square size={12} fill="#FF3333" className="text-red-500" />
                                     <Download size={12} className="text-white/60" />
                                 </button>
@@ -128,12 +130,12 @@ const PlayerHUD = memo(function PlayerHUD({
                     }}
                 >
                     <div className="flex items-center gap-1">
-                        <span className="opacity-60">FPS</span>
+                        <span className="opacity-60">{t.overlays.performance.fps}</span>
                         <span className="font-bold">{fps}</span>
                     </div>
                     <div className="w-px h-3 bg-white/20" />
                     <div className="flex items-center gap-1">
-                        <span className="opacity-60">Core</span>
+                        <span className="opacity-60">{t.overlays.performance.core}</span>
                         <span className="font-bold text-white/80">{coreName}</span>
                     </div>
                 </div>
@@ -148,8 +150,8 @@ const PlayerHUD = memo(function PlayerHUD({
                         border: `1px solid ${systemColor}40`,
                     }}
                 >
-                    <span className="text-white/60">INPUT</span>
-                    <span className="font-bold" style={{ color: systemColor }}>ACTIVE</span>
+                    <span className="text-white/60">{t.overlays.performance.input}</span>
+                    <span className="font-bold" style={{ color: systemColor }}>{t.overlays.performance.active}</span>
                 </div>
             )}
         </div>

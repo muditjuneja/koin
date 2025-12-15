@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { PlayerControlsProps } from './types';
 import { PlaybackControls } from './PlayerControls/PlaybackControls';
 import { SaveLoadControls } from './PlayerControls/SaveLoadControls';
@@ -43,6 +43,7 @@ const PlayerControls = memo(function PlayerControls({
     systemColor = '#00FF41',
     gamepadCount = 0,
     onGamepadSettings,
+    onSettings,
     volume = 100,
     isMuted = false,
     onVolumeChange,
@@ -76,6 +77,8 @@ const PlayerControls = memo(function PlayerControls({
                 hardcoreRestrictions={hardcoreRestrictions}
             />
 
+            <div className="w-full h-px bg-white/10 sm:hidden my-4" />
+
             <SaveLoadControls
                 onSave={onSave}
                 onLoad={onLoad}
@@ -94,10 +97,13 @@ const PlayerControls = memo(function PlayerControls({
                 onAutoSaveToggle={onAutoSaveToggle}
             />
 
+            <div className="w-full h-px bg-white/10 sm:hidden my-4" />
+
             <SettingsControls
                 onFullscreen={onFullscreen}
                 onControls={onControls}
                 onGamepadSettings={onGamepadSettings}
+                onSettings={onSettings}
                 onCheats={onCheats}
                 onRetroAchievements={onRetroAchievements}
                 onShowShortcuts={onShowShortcuts}
@@ -124,9 +130,11 @@ const PlayerControls = memo(function PlayerControls({
                 {controlsContent}
             </MobileControlDrawer>
 
-            {/* Desktop: Static bar with horizontal scroll if needed */}
-            <div className="hidden sm:flex w-full items-center justify-between gap-2 px-4 py-2 bg-black backdrop-blur-sm border-t border-white/10 shrink-0 overflow-x-auto">
-                {controlsContent}
+            {/* Desktop: Static bar with safe centering and auto-scroll */}
+            <div className="hidden sm:flex w-full bg-black/90 backdrop-blur-md border-t border-white/10 shrink-0 z-50 overflow-x-auto no-scrollbar">
+                <div className="flex items-center min-w-max mx-auto gap-4 px-8 py-4">
+                    {controlsContent}
+                </div>
             </div>
         </>
     );

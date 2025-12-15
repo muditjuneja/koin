@@ -1,6 +1,7 @@
 'use client';
 
-import React, { memo, useState, useEffect, ReactNode } from 'react';
+import { memo, useState, useEffect, ReactNode } from 'react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface MobileControlDrawerProps {
     children: ReactNode;
@@ -16,6 +17,7 @@ const MobileControlDrawer = memo(function MobileControlDrawer({
     children,
     systemColor = '#00FF41',
 }: MobileControlDrawerProps) {
+    const t = useKoinTranslation();
     const [isExpanded, setIsExpanded] = useState(false);
 
     // Close drawer when clicking outside
@@ -59,7 +61,7 @@ const MobileControlDrawer = memo(function MobileControlDrawer({
                             : '0 4px 20px rgba(0,0,0,0.5)',
                         borderColor: isExpanded ? systemColor : undefined
                     }}
-                    aria-label={isExpanded ? 'Close menu' : 'Open menu'}
+                    aria-label={isExpanded ? t.controls.menuClose : t.controls.menuOpen}
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -98,7 +100,7 @@ const MobileControlDrawer = memo(function MobileControlDrawer({
 
                 {/* Content */}
                 <div
-                    className="relative flex flex-wrap items-center justify-center gap-3 px-4 py-6 pb-20"
+                    className="relative flex flex-col items-center px-4 py-6 pb-20"
                     style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 80px)' }}
                 >
                     {children}

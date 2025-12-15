@@ -42,7 +42,7 @@ export default function Home() {
 
           <p className="text-xl md:text-3xl font-mono max-w-3xl mt-8 leading-relaxed text-zinc-300">
             The <span className="text-retro-cyan">drop-in React component</span> for
-            browser-based retro game emulation. 27 systems. Cloud saves.
+            browser-based retro game emulation. 28 systems. Cloud saves.
             Zero backend required.
           </p>
 
@@ -58,16 +58,21 @@ export default function Home() {
                 npm ↗
               </NeoButton>
             </a>
+            <a href="https://github.com/muditjuneja/koin" target="_blank" rel="noopener noreferrer">
+              <NeoButton variant="secondary" className="text-lg px-8 py-4">
+                GitHub ↗
+              </NeoButton>
+            </a>
           </div>
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16 pt-8 border-t border-white/10">
             <div>
-              <div className="text-4xl font-display font-black text-retro-green">27</div>
+              <div className="text-4xl font-display font-black text-retro-green">28</div>
               <div className="font-mono text-sm text-zinc-500 uppercase">Systems</div>
             </div>
             <div>
-              <div className="text-4xl font-display font-black text-retro-cyan">9</div>
+              <div className="text-4xl font-display font-black text-retro-cyan">10</div>
               <div className="font-mono text-sm text-zinc-500 uppercase">CRT Shaders</div>
             </div>
             <div>
@@ -242,7 +247,7 @@ export default function App() {
             </Link>
             <Link href="/docs/systems">
               <NeoButton variant="accent" className="text-lg px-8 py-4">
-                View All 27 Systems
+                View All 28 Systems
               </NeoButton>
             </Link>
           </div>
@@ -258,7 +263,7 @@ export default function App() {
           <div className="font-mono text-sm text-zinc-500 flex gap-4">
             <a href="https://www.npmjs.com/package/koin.js" target="_blank" className="hover:text-black">npm</a>
             <span>•</span>
-            <a href="https://github.com/muditjuneja/koin-deck-retro-player" target="_blank" className="hover:text-black">GitHub</a>
+            <a href="https://github.com/muditjuneja/koin" target="_blank" className="hover:text-black">GitHub</a>
             <span>•</span>
             <span>MIT Licensed</span>
           </div>

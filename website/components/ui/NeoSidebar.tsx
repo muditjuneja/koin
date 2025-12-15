@@ -9,6 +9,7 @@ const items = [
     { name: 'Installation', href: '/docs/installation' },
     { name: 'Basic Usage', href: '/docs/usage' },
     { name: 'Advanced Config', href: '/docs/advanced' },
+    { name: 'Internationalization', href: '/docs/i18n' },
     { name: 'API Reference', href: '/docs/api' },
     { name: 'System Compatibility', href: '/docs/systems' },
     { name: 'Core Showcase', href: '/docs/showcase' },

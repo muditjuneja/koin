@@ -14,6 +14,7 @@ import {
     saveGamepadMapping,
     formatGamepadButton,
 } from '../../lib/controls';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 export interface GamepadMapperProps {
     isOpen: boolean;
@@ -30,6 +31,7 @@ export default function GamepadMapper({
     onSave,
     systemColor = '#00FF41',
 }: GamepadMapperProps) {
+    const t = useKoinTranslation();
     // Selected player for remapping (1-indexed)
     const [selectedPlayer, setSelectedPlayer] = useState(1);
 
@@ -158,11 +160,11 @@ export default function GamepadMapper({
                     <div className="flex items-center gap-3">
                         <Joystick className="text-retro-primary" size={24} style={{ color: systemColor }} />
                         <div>
-                            <h2 className="text-lg font-bold text-white">Gamepad Settings</h2>
+                            <h2 className="text-lg font-bold text-white">{t.modals.gamepad.title}</h2>
                             <p className="text-xs text-gray-400">
                                 {gamepads.length > 0
-                                    ? `${gamepads.length} controller${gamepads.length > 1 ? 's' : ''} connected`
-                                    : 'No controllers detected'}
+                                    ? t.modals.gamepad.connected.replace('{{count}}', gamepads.length.toString())
+                                    : t.modals.gamepad.none}
                             </p>
                         </div>
                     </div>
@@ -178,7 +180,7 @@ export default function GamepadMapper({
                 {gamepads.length > 1 && (
                     <div className="px-6 py-3 border-b border-white/10 bg-black/30">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400 font-medium">Player:</span>
+                            <span className="text-xs text-gray-400 font-medium">{t.modals.gamepad.player}</span>
                             <div className="flex gap-1">
                                 {gamepads.map((gp) => (
                                     <button
@@ -227,12 +229,12 @@ export default function GamepadMapper({
                             {/* Animated ring */}
                             <div className="absolute inset-0 -m-2 rounded-full border-2 border-dashed border-gray-600 animate-spin" style={{ animationDuration: '8s' }} />
                         </div>
-                        <p className="text-gray-300 font-medium mb-2">No controller detected</p>
+                        <p className="text-gray-300 font-medium mb-2">{t.modals.gamepad.noController}</p>
                         <p className="text-sm text-gray-500 mb-4">
-                            Press any button on your gamepad to connect
+                            {t.modals.gamepad.pressAny}
                         </p>
                         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10">
-                            <span className="text-xs text-gray-400">Waiting for input...</span>
+                            <span className="text-xs text-gray-400">{t.modals.gamepad.waiting}</span>
                             <div className="flex gap-1">
                                 <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
                                 <div className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -248,10 +250,10 @@ export default function GamepadMapper({
                         {listeningFor && (
                             <div className="p-4 rounded-lg bg-black/50 border border-retro-primary/50 text-center animate-pulse" style={{ borderColor: `${systemColor}50` }}>
                                 <p className="text-sm text-white mb-1">
-                                    Press a button on your controller for <strong>{BUTTON_LABELS[listeningFor]}</strong>
+                                    {t.modals.gamepad.pressButton.replace('{{button}}', BUTTON_LABELS[listeningFor])}
                                 </p>
                                 <p className="text-xs text-gray-400">
-                                    Press Escape to cancel
+                                    {t.modals.gamepad.pressEsc}
                                 </p>
                             </div>
                         )}
@@ -297,7 +299,7 @@ export default function GamepadMapper({
                                                     color: systemColor,
                                                 } : {}}
                                             >
-                                                {listeningFor === btn ? 'Press...' : formatGamepadButton(currentBindings[btn])}
+                                                {listeningFor === btn ? t.controls.press : formatGamepadButton(currentBindings[btn])}
                                             </span>
                                         </button>
                                     ))}
@@ -316,7 +318,7 @@ export default function GamepadMapper({
                             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
                         >
                             <RotateCcw size={16} />
-                            Reset to Default
+                            {t.modals.gamepad.reset}
                         </button>
                         <button
                             onClick={handleSave}
@@ -325,7 +327,7 @@ export default function GamepadMapper({
                             style={{ backgroundColor: systemColor }}
                         >
                             <Check size={16} />
-                            Save Settings
+                            {t.modals.gamepad.save}
                         </button>
                     </div>
                 )}

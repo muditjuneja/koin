@@ -9,6 +9,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { RACredentials, RAGameExtended, getUserAvatarUrl } from '../../lib/retroachievements';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 export interface SettingsTabProps {
   credentials: RACredentials;
@@ -31,6 +32,8 @@ export default function SettingsTab({
   progress,
   onLogout,
 }: SettingsTabProps) {
+  const t = useKoinTranslation();
+
   return (
     <div className="p-3 space-y-3">
       {/* User Card */}
@@ -104,7 +107,7 @@ export default function SettingsTab({
           <div className="flex items-center gap-2">
             <Shield className={hardcoreEnabled ? 'text-red-500' : 'text-gray-500'} size={16} />
             <div>
-              <p className="text-xs font-medium text-white">Hardcore Mode</p>
+              <p className="text-xs font-medium text-white">{t.retroAchievements.hardcore}</p>
               <p className="text-[10px] text-gray-500">2x points, no savestates</p>
             </div>
           </div>
@@ -122,7 +125,7 @@ export default function SettingsTab({
 
         {hardcoreEnabled && (
           <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-[10px] text-red-300">
-            Savestates, rewind, cheats & slow-mo disabled
+            {t.common.disabledInHardcore}
           </div>
         )}
       </div>
@@ -130,7 +133,7 @@ export default function SettingsTab({
       {/* Status */}
       <div className="flex items-center gap-1.5 text-xs px-1">
         <CheckCircle className="text-green-500" size={12} />
-        <span className="text-green-400">Connected</span>
+        <span className="text-green-400">{t.retroAchievements.connectedStatus}</span>
       </div>
 
       {/* Logout */}
@@ -139,7 +142,7 @@ export default function SettingsTab({
         className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded-lg transition-colors border border-white/10"
       >
         <LogOut size={14} />
-        <span>Sign Out</span>
+        <span>{t.retroAchievements.logout}</span>
       </button>
     </div>
   );

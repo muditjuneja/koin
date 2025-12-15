@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Code, Check, Copy } from 'lucide-react';
 import { CheatModalProps, Cheat } from '../types';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 export default function CheatModal({
     isOpen,
@@ -11,6 +12,7 @@ export default function CheatModal({
     onToggle,
     onClose,
 }: CheatModalProps) {
+    const t = useKoinTranslation();
     const [copiedId, setCopiedId] = React.useState<number | null>(null);
 
     if (!isOpen) return null;
@@ -36,9 +38,9 @@ export default function CheatModal({
                     <div className="flex items-center gap-3">
                         <Code className="text-purple-400" size={24} />
                         <div>
-                            <h2 className="text-lg font-bold text-white">Cheat Codes</h2>
+                            <h2 className="text-lg font-bold text-white">{t.modals.cheats.title}</h2>
                             <p className="text-xs text-gray-400">
-                                {cheats.length} cheat{cheats.length !== 1 ? 's' : ''} available
+                                {t.modals.cheats.available.replace('{{count}}', cheats.length.toString())}
                             </p>
                         </div>
                     </div>
@@ -55,8 +57,8 @@ export default function CheatModal({
                     {cheats.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
                             <Code size={48} className="mx-auto mb-3 opacity-50" />
-                            <p className="font-medium">No cheats available</p>
-                            <p className="text-sm mt-1">No cheat codes found for this game</p>
+                            <p className="font-medium">{t.modals.cheats.emptyTitle}</p>
+                            <p className="text-sm mt-1">{t.modals.cheats.emptyDesc}</p>
                         </div>
                     ) : (
                         cheats.map((cheat) => {
@@ -102,7 +104,7 @@ export default function CheatModal({
                                                     handleCopy(cheat.code, cheat.id);
                                                 }}
                                                 className="p-1.5 rounded hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
-                                                title="Copy code"
+                                                title={t.modals.cheats.copy}
                                             >
                                                 {copiedId === cheat.id ? (
                                                     <Check size={14} className="text-green-400" />
@@ -122,8 +124,8 @@ export default function CheatModal({
                 <div className="px-6 py-3 bg-black/30 border-t border-white/10">
                     <p className="text-xs text-gray-500 text-center">
                         {activeCheats.size > 0
-                            ? `${activeCheats.size} cheat${activeCheats.size !== 1 ? 's' : ''} active`
-                            : 'Click a cheat to toggle it on/off'
+                            ? t.modals.cheats.active.replace('{{count}}', activeCheats.size.toString())
+                            : t.modals.cheats.toggleHint
                         }
                     </p>
                 </div>

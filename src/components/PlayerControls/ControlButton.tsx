@@ -42,25 +42,23 @@ export const ControlButton = memo(function ControlButton({
             onTouchEnd={onTouchEnd}
             disabled={disabled}
             className={`
-        group relative flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg
-        transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
-        select-none flex-shrink-0
-        ${active
-                    ? ''
-                    : danger
-                        ? 'hover:bg-red-500/20 text-gray-400 hover:text-red-400'
-                        : 'hover:bg-white/10 text-gray-400 hover:text-white'
-                }
-        ${className}
-      `}
+                    flex flex-col items-center justify-center gap-1.5
+                    px-3 py-2 rounded-lg
+                    transition-all duration-200
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    hover:bg-white/10 active:bg-white/20
+                    ${active ? 'bg-white/10 ring-1 ring-inset' : ''}
+                    ${danger ? 'hover:bg-red-500/20 text-red-400' : 'text-gray-400 hover:text-white'}
+                    ${className}
+                `}
             style={active ? {
                 backgroundColor: `${systemColor}20`,
                 color: systemColor,
             } : {}}
             title={label}
         >
-            <Icon size={iconSize} className="transition-transform group-hover:scale-110" />
-            <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">
+            <Icon size={iconSize} className={`transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'}`} style={active ? { color: systemColor } : undefined} />
+            <span className="text-[9px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: active ? systemColor : undefined }}>
                 {label}
             </span>
         </button>

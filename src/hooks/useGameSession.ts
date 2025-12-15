@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, RefObject } from 'react';
 import { useNostalgist } from './useNostalgist';
+import { useKoinTranslation } from './useKoinTranslation';
 import { useGamepad } from './useGamepad';
 import { useVolume } from './useVolume';
 import { useControls } from './useControls';
@@ -29,6 +30,8 @@ export function useGameSession(props: UseGameSessionProps) {
         showToast,
     } = props;
 
+    const t = useKoinTranslation();
+
     // Controls management
     const { controls, saveControls } = useControls(system, showToast);
 
@@ -40,10 +43,10 @@ export function useGameSession(props: UseGameSessionProps) {
     const { gamepads, connectedCount } = useGamepad({
         onConnect: (gamepad) => {
             showToast(
-                gamepad.name || 'Controller ready to use',
+                gamepad.name || t.notifications.controllerReady,
                 'gamepad',
                 {
-                    title: 'Controller Connected',
+                    title: t.notifications.controllerConnected,
                     duration: 4000,
                     action: {
                         label: 'Configure',
@@ -54,10 +57,10 @@ export function useGameSession(props: UseGameSessionProps) {
         },
         onDisconnect: () => {
             showToast(
-                'Controller was disconnected',
+                t.notifications.controllerDisconnected,
                 'warning',
                 {
-                    title: 'Controller Lost',
+                    title: t.notifications.controllerDisconnected, // Title repeats or generic? Using same for now
                     duration: 3000,
                 }
             );
@@ -95,10 +98,10 @@ export function useGameSession(props: UseGameSessionProps) {
             if (arcadeSystems.includes(system.toLowerCase())) {
                 setTimeout(() => {
                     showToast(
-                        'Press SHIFT to insert coin',
+                        t.notifications.insertCoin,
                         'info',
                         {
-                            title: '🪙 Insert Coin',
+                            title: t.notifications.insertCoinTitle,
                             duration: 5000,
                         }
                     );

@@ -8,6 +8,7 @@ import {
     getConsoleKeyboardDefaults,
 } from '../lib/controls';
 import { ToastType } from './useToast';
+import { useKoinTranslation } from './useKoinTranslation';
 
 export interface UseControlsReturn {
     controls: KeyboardMapping;
@@ -23,6 +24,7 @@ export function useControls(
     system?: string,
     onNotify?: (message: string, type?: ToastType) => void
 ): UseControlsReturn {
+    const t = useKoinTranslation();
     // Get default controls for this system
     const defaultControls = getConsoleKeyboardDefaults(system || 'SNES');
 
@@ -43,14 +45,14 @@ export function useControls(
     const saveControls = useCallback((newControls: KeyboardMapping) => {
         setControls(newControls);
         saveKeyboardMapping(newControls, system);
-        onNotify?.('Controls saved', 'success');
-    }, [system, onNotify]);
+        onNotify?.(t.notifications.controlsSaved, 'success');
+    }, [system, onNotify, t]);
 
     const resetToDefaults = useCallback(() => {
         setControls(defaultControls);
         saveKeyboardMapping(defaultControls, system);
-        onNotify?.('Controls reset to defaults', 'info');
-    }, [defaultControls, system, onNotify]);
+        onNotify?.(t.notifications.controlsReset, 'info');
+    }, [defaultControls, system, onNotify, t]);
 
     return {
         controls,

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect, useCallback } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import PlayerControls from './PlayerControls';
 import ToastContainer from './Overlays/ToastContainer';
 import PerformanceOverlay from './Overlays/PerformanceOverlay';
@@ -19,11 +19,17 @@ import { usePlayerPersistence } from '../hooks/usePlayerPersistence';
 import { GamePlayerProps } from './types';
 import { KeyboardMapping } from '../lib/controls';
 import { sendTelemetry } from '../lib/telemetry';
+import { KoinI18nProvider } from '../hooks/useKoinTranslation';
+import { en, es, fr } from '../locales';
+import { deepMerge } from '../lib/common-utils';
+import { KoinTranslations } from '../locales/types';
 
-export const GamePlayer = memo(function GamePlayer(
+const GamePlayerInner = memo(function GamePlayerInner(
     props: GamePlayerProps & {
-        controls?: KeyboardMapping; // Allow passing pre-loaded controls
+        controls?: KeyboardMapping;
         saveControls?: (controls: KeyboardMapping) => void;
+        currentLanguage?: 'en' | 'es' | 'fr';
+        onLanguageChange?: (lang: 'en' | 'es' | 'fr') => void;
     }
 ) {
     // -- Persistence Hook --
@@ -41,6 +47,7 @@ export const GamePlayer = memo(function GamePlayer(
     // -- Internal State --
     const [biosModalOpen, setBiosModalOpen] = useState(false);
     const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+    const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
     // -- Derived Props from Persistence (if not overridden by direct props) --
     // Use props.shader if provided, otherwise persistent shader
@@ -202,6 +209,11 @@ export const GamePlayer = memo(function GamePlayer(
         pause();
         setGamepadModalOpen(true);
     }, [pause, setGamepadModalOpen]);
+
+    const handleShowSettings = useCallback(() => {
+        pause();
+        setSettingsModalOpen(true);
+    }, [pause, setSettingsModalOpen]);
 
     const handleExitClick = useCallback(() => {
         onExit?.();
@@ -437,6 +449,7 @@ export const GamePlayer = memo(function GamePlayer(
                             systemColor={systemColor}
                             gamepadCount={connectedCount}
                             onGamepadSettings={handleShowGamepadSettings}
+                            onSettings={handleShowSettings}
                             volume={volume}
                             isMuted={muted} // Use local 'muted' which is aliased from 'isMuted'
                             onVolumeChange={handleVolumeChange} // Wrapped
@@ -506,6 +519,12 @@ export const GamePlayer = memo(function GamePlayer(
                     availableBios={props.availableBios}
                     currentBiosId={props.currentBiosId}
                     onSelectBios={props.onSelectBios}
+
+                    settingsModalOpen={settingsModalOpen}
+                    setSettingsModalOpen={setSettingsModalOpen}
+                    // Props passed from wrapper
+                    currentLanguage={(props as any).currentLanguage}
+                    onLanguageChange={(props as any).onLanguageChange}
                 />
 
                 {/* RASidebar */}
@@ -530,6 +549,38 @@ export const GamePlayer = memo(function GamePlayer(
                 <ToastContainer toasts={toasts} onDismiss={dismissToast} />
             </div>
         </div>
+    );
+});
+
+export const GamePlayer = memo(function GamePlayer(
+    props: GamePlayerProps & {
+        controls?: KeyboardMapping;
+        saveControls?: (controls: KeyboardMapping) => void;
+        initialLanguage?: 'en' | 'es' | 'fr';
+    }
+) {
+    const [currentLanguage, setCurrentLanguage] = useState<'en' | 'es' | 'fr'>(props.initialLanguage || 'en');
+
+    const effectiveTranslations = useMemo(() => {
+        const base = currentLanguage === 'es' ? es : currentLanguage === 'fr' ? fr : en;
+        if (props.translations) {
+            return deepMerge(base, props.translations) as KoinTranslations;
+        }
+        return base;
+    }, [currentLanguage, props.translations]);
+
+    const handleLanguageChange = useCallback((lang: 'en' | 'es' | 'fr') => {
+        setCurrentLanguage(lang);
+    }, []);
+
+    return (
+        <KoinI18nProvider translations={effectiveTranslations}>
+            <GamePlayerInner
+                {...props}
+                currentLanguage={currentLanguage}
+                onLanguageChange={handleLanguageChange}
+            />
+        </KoinI18nProvider>
     );
 });
 

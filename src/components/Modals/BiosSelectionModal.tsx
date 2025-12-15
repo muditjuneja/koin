@@ -2,6 +2,7 @@
 
 
 import { X, Cpu, Check, FileCode, AlertCircle, Code } from 'lucide-react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 export interface BiosOption {
     id: string;
@@ -26,6 +27,8 @@ export default function BiosSelectionModal({
     onSelectBios,
     systemColor = '#00FF41',
 }: BiosSelectionModalProps) {
+    const t = useKoinTranslation();
+
     if (!isOpen) return null;
 
     return (
@@ -46,9 +49,9 @@ export default function BiosSelectionModal({
                     <div className="flex items-center gap-3">
                         <Cpu size={24} style={{ color: systemColor }} />
                         <div>
-                            <h2 className="text-lg font-bold text-white uppercase tracking-wide">BIOS Selection</h2>
+                            <h2 className="text-lg font-bold text-white uppercase tracking-wide">{t.modals.bios.title}</h2>
                             <p className="text-xs text-gray-400">
-                                Select a BIOS file to use for this game
+                                {t.modals.bios.description}
                             </p>
                         </div>
                     </div>
@@ -66,7 +69,7 @@ export default function BiosSelectionModal({
                     <div className="mb-4 p-3 rounded bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3">
                         <AlertCircle className="shrink-0 text-yellow-500 mt-0.5" size={16} />
                         <div className="text-xs text-yellow-200/80">
-                            <strong>Note:</strong> Changing BIOS requires the emulator to restart. Your unsaved progress will be lost.
+                            <strong>{t.modals.bios.warningTitle}</strong> {t.modals.bios.warning}
                         </div>
                     </div>
 
@@ -98,16 +101,16 @@ export default function BiosSelectionModal({
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                                 <span className={`font-mono font-bold truncate ${!currentBiosId ? 'text-white' : 'text-gray-300'}`}>
-                                    System Default
+                                    {t.modals.bios.systemDefault}
                                 </span>
                                 {!currentBiosId && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">
-                                        Active
+                                        {t.modals.bios.active}
                                     </span>
                                 )}
                             </div>
                             <p className="text-xs text-gray-500 truncate mt-0.5">
-                                Use the emulator's built-in or default BIOS
+                                {t.modals.bios.defaultDesc}
                             </p>
                         </div>
                         {!currentBiosId && (
@@ -118,8 +121,8 @@ export default function BiosSelectionModal({
                     {biosOptions.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
                             <FileCode size={48} className="mx-auto mb-3 opacity-30" />
-                            <p className="text-sm">No BIOS files found for this console.</p>
-                            <p className="text-[10px] mt-1 text-gray-600">Upload BIOS files in your Dashboard Library.</p>
+                            <p className="text-sm">{t.modals.bios.emptyTitle}</p>
+                            <p className="text-[10px] mt-1 text-gray-600">{t.modals.bios.emptyDesc}</p>
                         </div>
                     ) : (
                         biosOptions.map((bios) => {
@@ -161,7 +164,7 @@ export default function BiosSelectionModal({
                                             </span>
                                             {isSelected && (
                                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">
-                                                    Active
+                                                    {t.modals.bios.active}
                                                 </span>
                                             )}
                                         </div>
@@ -185,7 +188,7 @@ export default function BiosSelectionModal({
                 {/* Footer */}
                 <div className="px-6 py-3 bg-black/30 border-t border-white/10 text-center">
                     <p className="text-[10px] text-gray-500 uppercase tracking-widest">
-                        System Firmware Settings
+                        {t.modals.bios.footer}
                     </p>
                 </div>
             </div>

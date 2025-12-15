@@ -12,6 +12,7 @@ import {
     getConsoleButtons,
     getConsoleKeyboardDefaults,
 } from '../../lib/controls';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 // Filter control groups to only show buttons available for this system
 function getFilteredGroups(activeButtons: ButtonId[]) {
@@ -28,6 +29,7 @@ export default function ControlMapper({
     onClose,
     system,
 }: ControlMapperProps) {
+    const t = useKoinTranslation();
     const [localControls, setLocalControls] = useState<KeyboardMapping>(controls);
     const [listeningFor, setListeningFor] = useState<ButtonId | null>(null);
 
@@ -108,9 +110,9 @@ export default function ControlMapper({
                     <div className="flex items-center gap-3">
                         <Gamepad2 className="text-retro-primary" size={24} />
                         <div>
-                            <h2 className="text-lg font-bold text-white">Control Mapping</h2>
+                            <h2 className="text-lg font-bold text-white">{t.modals.controls.title}</h2>
                             <p className="text-xs text-gray-400">
-                                Click a button and press a key to remap
+                                {t.modals.controls.description}
                             </p>
                         </div>
                     </div>
@@ -154,7 +156,7 @@ export default function ControlMapper({
                                                 }
                       `}
                                         >
-                                            {listeningFor === btn ? 'Press...' : formatKeyCode(localControls[btn] || '')}
+                                            {listeningFor === btn ? t.modals.controls.pressKey : formatKeyCode(localControls[btn] || '')}
                                         </span>
                                     </button>
                                 ))}
@@ -170,14 +172,14 @@ export default function ControlMapper({
                         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
                     >
                         <RotateCcw size={16} />
-                        Reset to Default
+                        {t.modals.controls.reset}
                     </button>
                     <button
                         onClick={handleSave}
                         className="flex items-center gap-2 px-6 py-2 rounded-lg bg-retro-primary text-black font-bold text-sm hover:bg-retro-primary/90 transition-colors"
                     >
                         <Check size={16} />
-                        Save Controls
+                        {t.modals.controls.save}
                     </button>
                 </div>
             </div>

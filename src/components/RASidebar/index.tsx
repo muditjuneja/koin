@@ -6,6 +6,7 @@ import { RACredentials, RAGameExtended, RAAchievement } from '../../lib/retroach
 import LoginForm from './LoginForm';
 import SettingsTab from './SettingsTab';
 import AchievementsTab from './AchievementsTab';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 type TabType = 'achievements' | 'settings';
 
@@ -43,6 +44,7 @@ export default function RASidebar({
   achievements,
   unlockedIds,
 }: RASidebarProps) {
+  const t = useKoinTranslation();
   // If logged in and has game, show achievements tab by default
   const defaultTab: TabType = (isLoggedIn && currentGame && achievements.length > 0) ? 'achievements' : 'settings';
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
@@ -76,7 +78,7 @@ export default function RASidebar({
     setLocalError(null);
 
     if (!username.trim() || !password.trim()) {
-      setLocalError('Username and Password are required');
+      setLocalError(t.retroAchievements.usernameRequired);
       return;
     }
 
@@ -135,7 +137,7 @@ export default function RASidebar({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Trophy className="text-yellow-400" size={18} />
-              <span className="font-heading text-sm text-white">RetroAchievements</span>
+              <span className="font-heading text-sm text-white">{t.retroAchievements.title}</span>
             </div>
             <button
               onClick={onClose}
@@ -156,7 +158,7 @@ export default function RASidebar({
                   }`}
               >
                 <List size={12} />
-                Achievements
+                {t.retroAchievements.achievements}
               </button>
               <button
                 onClick={() => setActiveTab('settings')}
@@ -166,7 +168,7 @@ export default function RASidebar({
                   }`}
               >
                 <Settings size={12} />
-                Settings
+                {t.settings.title}
               </button>
             </div>
           )}
@@ -215,7 +217,7 @@ export default function RASidebar({
 
         {/* Footer */}
         <div className="p-2 border-t border-gray-800 bg-gray-900/80 text-[10px] text-gray-500 text-center flex-shrink-0">
-          Powered by{' '}
+          {t.retroAchievements.poweredBy}{' '}
           <a
             href="https://retroachievements.org"
             target="_blank"

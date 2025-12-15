@@ -3,6 +3,7 @@ import { Save, Download, Camera, Video, Circle } from 'lucide-react';
 import { ControlButton } from './ControlButton';
 import AutoSaveIndicator, { AutoSaveState } from '../UI/AutoSaveIndicator';
 import HardcoreTooltip from '../UI/HardcoreTooltip';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface SaveLoadControlsProps {
     onSave: () => void;
@@ -16,6 +17,7 @@ interface SaveLoadControlsProps {
     systemColor?: string;
     hardcoreRestrictions?: {
         canUseSaveStates?: boolean;
+        isHardcore?: boolean;
     };
     autoSaveEnabled?: boolean;
     autoSaveProgress?: number;
@@ -41,8 +43,10 @@ export const SaveLoadControls = memo(function SaveLoadControls({
     autoSavePaused = false,
     onAutoSaveToggle,
 }: SaveLoadControlsProps) {
+    const t = useKoinTranslation();
+
     return (
-        <div className="flex items-center gap-3 px-3 sm:px-4 border-x border-white/10 flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-center gap-4 w-full sm:w-auto sm:flex-nowrap sm:gap-3 px-3 sm:px-4 sm:border-x sm:border-white/10 flex-shrink-0">
             {/* Auto-save indicator - clickable to toggle, always visible when enabled */}
             {autoSaveEnabled && (
                 <div className="flex-shrink-0">
@@ -59,27 +63,33 @@ export const SaveLoadControls = memo(function SaveLoadControls({
                 <ControlButton
                     onClick={hardcoreRestrictions?.canUseSaveStates === false ? undefined : onSave}
                     icon={Save}
-                    label="Save"
+                    label={t.controls.save}
                     disabled={disabled || saveDisabled || hardcoreRestrictions?.canUseSaveStates === false}
                     systemColor={systemColor}
                 />
-                <HardcoreTooltip show={hardcoreRestrictions?.canUseSaveStates === false} />
+                <HardcoreTooltip
+                    show={hardcoreRestrictions?.canUseSaveStates === false}
+                    message={hardcoreRestrictions?.isHardcore ? t.common.disabledInHardcore : t.common.notSupported}
+                />
             </div>
             <div className="relative group flex-shrink-0">
                 <ControlButton
                     onClick={hardcoreRestrictions?.canUseSaveStates === false ? undefined : onLoad}
                     icon={Download}
-                    label="Load"
+                    label={t.controls.load}
                     disabled={disabled || loadDisabled || hardcoreRestrictions?.canUseSaveStates === false}
                     systemColor={systemColor}
                 />
-                <HardcoreTooltip show={hardcoreRestrictions?.canUseSaveStates === false} />
+                <HardcoreTooltip
+                    show={hardcoreRestrictions?.canUseSaveStates === false}
+                    message={hardcoreRestrictions?.isHardcore ? t.common.disabledInHardcore : t.common.notSupported}
+                />
             </div>
             <div className="flex-shrink-0">
                 <ControlButton
                     onClick={onScreenshot}
                     icon={Camera}
-                    label="Snap"
+                    label={t.controls.snap}
                     disabled={disabled || saveDisabled}
                     systemColor={systemColor}
                 />
@@ -92,7 +102,7 @@ export const SaveLoadControls = memo(function SaveLoadControls({
                         onClick={onRecordToggle}
                         disabled={disabled}
                         className={`flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/10 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        title={isRecording ? 'Stop recording' : 'Start recording'}
+                        title={isRecording ? t.controls.stopRecord : t.controls.startRecord}
                     >
                         <div className="relative">
                             {isRecording ? (
@@ -108,7 +118,7 @@ export const SaveLoadControls = memo(function SaveLoadControls({
                             className="text-[10px] font-bold uppercase tracking-wider"
                             style={{ color: isRecording ? '#FF3333' : undefined }}
                         >
-                            {isRecording ? 'REC' : 'Rec'}
+                            {t.controls.rec}
                         </span>
                     </button>
                 </div>

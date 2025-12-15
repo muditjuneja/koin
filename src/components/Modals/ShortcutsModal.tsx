@@ -1,34 +1,14 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { X, Keyboard } from 'lucide-react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface ShortcutsModalProps {
     isOpen: boolean;
     onClose: () => void;
     systemColor?: string;
 }
-
-// F-key shortcuts - these are PLAYER features, not game controls
-const SHORTCUTS = [
-    {
-        section: 'Overlays', items: [
-            { key: 'F1', description: 'Show this help' },
-            { key: 'F3', description: 'Performance Overlay (FPS)' },
-            { key: 'F4', description: 'Input Display' },
-        ]
-    },
-    {
-        section: 'Recording', items: [
-            { key: 'F5', description: 'Start/Stop Recording' },
-        ]
-    },
-    {
-        section: 'Audio', items: [
-            { key: 'F9', description: 'Toggle Mute' },
-        ]
-    },
-];
 
 /**
  * Shortcuts Modal
@@ -41,6 +21,29 @@ const ShortcutsModal = memo(function ShortcutsModal({
     onClose,
     systemColor = '#00FF41',
 }: ShortcutsModalProps) {
+    const t = useKoinTranslation();
+
+    // F-key shortcuts - these are PLAYER features, not game controls
+    const shortcuts = useMemo(() => [
+        {
+            section: t.modals.shortcuts.overlays, items: [
+                { key: 'F1', description: t.modals.shortcuts.showHelp },
+                { key: 'F3', description: t.modals.shortcuts.perfOverlay },
+                { key: 'F4', description: t.modals.shortcuts.inputDisplay },
+            ]
+        },
+        {
+            section: t.modals.shortcuts.recording, items: [
+                { key: 'F5', description: t.modals.shortcuts.toggleRec },
+            ]
+        },
+        {
+            section: t.settings.audio, items: [
+                { key: 'F9', description: t.modals.shortcuts.toggleMute },
+            ]
+        },
+    ], [t]);
+
     if (!isOpen) return null;
 
     return (
@@ -60,7 +63,7 @@ const ShortcutsModal = memo(function ShortcutsModal({
                 >
                     <div className="flex items-center gap-2">
                         <Keyboard size={18} style={{ color: systemColor }} />
-                        <span className="font-bold text-white">Player Shortcuts</span>
+                        <span className="font-bold text-white">{t.modals.shortcuts.playerShortcuts}</span>
                     </div>
                     <button
                         onClick={onClose}
@@ -72,7 +75,7 @@ const ShortcutsModal = memo(function ShortcutsModal({
 
                 {/* Content */}
                 <div className="p-4 space-y-3">
-                    {SHORTCUTS.map(({ section, items }) => (
+                    {shortcuts.map(({ section, items }) => (
                         <div key={section}>
                             <h3
                                 className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-60"
@@ -105,7 +108,7 @@ const ShortcutsModal = memo(function ShortcutsModal({
 
                     {/* Note about game controls */}
                     <div className="pt-2 border-t border-white/10 text-xs text-white/40">
-                        Game controls can be configured in <strong className="text-white/60">Keys</strong> settings.
+                        Game controls can be configured in <strong className="text-white/60">{t.controls.keys}</strong> settings.
                     </div>
                 </div>
 
@@ -114,7 +117,7 @@ const ShortcutsModal = memo(function ShortcutsModal({
                     className="px-4 py-2 text-center text-xs text-white/40 border-t"
                     style={{ borderColor: `${systemColor}20` }}
                 >
-                    Press <kbd className="px-1 bg-white/10 rounded font-mono">ESC</kbd> to close
+                    {t.modals.shortcuts.pressEsc}
                 </div>
             </div>
         </div>

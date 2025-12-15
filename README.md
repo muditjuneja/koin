@@ -2,7 +2,7 @@
 
 ## Browser Retro Game Emulation for React
 
-> **27 systems. Cloud saves. Zero backend required.**
+> **28 systems. Cloud saves. Multi-language. Zero backend required.**
 
 [![Try the Demo](https://img.shields.io/badge/PLAY-TRY%20THE%20DEMO-FFD600?style=for-the-badge&logoColor=black&labelColor=black)](https://koin.js.org/)
 [![NPM Version](https://img.shields.io/npm/v/koin.js?style=for-the-badge&color=white&labelColor=black)](https://www.npmjs.com/package/koin.js)
@@ -14,13 +14,58 @@ The drop-in React component for browser-based retro game emulation. Built on [No
 
 ## Features
 
-- 🎮 **27 Systems** — NES to PlayStation, Game Boy to Arcade
-- ☁️ **Cloud-Ready Saves** — Slot-based saves with screenshots, auto-save, emergency saves
-- ⏪ **Rewind Time** — Go back in time (auto-enabled for 8/16-bit systems)
-- 🏆 **RetroAchievements** — Official RA integration with hardcore mode
-- 📱 **Touch Controls** — GPU-accelerated virtual D-pad and buttons
-- 📹 **Gameplay Recording** — VP9 WebM capture at 30fps
-- 🎨 **10 CRT Shaders** — Lottes, Geom, zFast, LCD Grid, and more
+### 🎮 Core Emulation
+- **28 Consoles** — NES to PlayStation, Game Boy to Dreamcast
+- **Automatic Core Selection** — Best emulator core per system
+- **BIOS Management** — Multi-file BIOS support with UI selection
+- **Performance Optimized** — SharedArrayBuffer for maximum speed
+
+### ☁️ Save System
+- **Slot-Based Saves** — Multiple save states with screenshots
+- **Auto-Save** — Periodic background saves (configurable interval)
+- **Emergency Saves** — Automatic save on tab hide/close
+- **Cloud-Ready API** — Bring your own backend with async handlers
+
+### 🎨 Display & Effects
+- **10 CRT Shaders** — Lottes, Geom, Easymode, Hyllian, zFast, and more
+- **Runtime Shader Switching** — Change filters without restart
+- **System Theming** — Per-console accent colors
+- **Screenshot Capture** — PNG snapshots with hotkey support
+
+### 🕹️ Controls
+- **Keyboard Remapping** — Per-console custom key bindings
+- **Gamepad Support** — Auto-detect Xbox, PlayStation, Nintendo controllers
+- **Touch Controls** — GPU-accelerated virtual D-pad and buttons for mobile
+- **Control Persistence** — Saves user preferences across sessions
+
+### ⏪ Special Features
+- **Rewind** — Time-travel gameplay (auto-enabled for 8/16-bit)
+- **Speed Control** — 0.25x to 4x with hotkey toggle
+- **Fast-Forward** — Turbo mode for grinding
+
+### 📹 Recording & Overlays
+- **Gameplay Recording** — VP9/VP8 WebM capture at 30fps
+- **Performance Overlay** — FPS, frame time, memory stats
+- **Input Display** — Virtual controller overlay for streaming
+- **Toast Notifications** — Non-intrusive save/load feedback
+
+### 🏆 RetroAchievements
+- **Official RA Integration** — Track unlocks across sessions
+- **Hardcore Mode** — Disable saves/cheats for leaderboard eligibility
+- **Achievement Browser** — Filter by locked/unlocked status
+- **Progress Tracking** — Points remaining per game
+
+### 🌍 Internationalization
+- **3 Built-in Languages** — English, Spanish, French
+- **Type-Safe Translations** — Full TypeScript support
+- **Partial Overrides** — Customize specific strings
+- **Custom Languages** — Implement your own translation set
+
+### 🎯 Developer Experience
+- **TypeScript First** — Complete type definitions
+- **Zero Config** — Works out of the box
+- **Customizable UI** — Accent colors, shaders, controls
+- **Web Component** — Use without React
 
 ## Installation
 
@@ -36,6 +81,7 @@ pnpm add koin.js
 
 ```tsx
 import { GamePlayer } from 'koin.js';
+import 'koin.js/styles.css';
 
 export default function App() {
   return (
@@ -60,14 +106,45 @@ import { GamePlayer } from 'koin.js';
   system="NES"
   title="My Game"
   
-  // Your backend handlers
-  onSaveState={async (slot, blob, screenshot) => { /* save to your API */ }}
-  onLoadState={async (slot) => { /* return Blob or null */ }}
-  onAutoSave={async (blob, screenshot) => { /* periodic save */ }}
+  // Cloud save handlers
+  onSaveState={async (slot, blob, screenshot) => {
+    await fetch(`/api/saves/${slot}`, {
+      method: 'POST',
+      body: blob,
+    });
+  }}
+  onLoadState={async (slot) => {
+    const res = await fetch(`/api/saves/${slot}`);
+    return res.ok ? await res.blob() : null;
+  }}
+  onAutoSave={async (blob, screenshot) => {
+    await fetch('/api/autosave', { method: 'POST', body: blob });
+  }}
   
-  // Optional theming
+  // Customization
   systemColor="#FF3333"
   shader="crt/crt-lottes"
+  initialLanguage="es"
+/>
+```
+
+## Internationalization
+
+```tsx
+<GamePlayer
+  initialLanguage="es"  // Spanish UI
+/>
+
+// Or provide custom translations
+import { en } from 'koin.js';
+
+<GamePlayer
+  translations={{
+    controls: {
+      ...en.controls,
+      play: 'START GAME',
+    }
+  }}
 />
 ```
 
@@ -91,18 +168,30 @@ import { GamePlayer } from 'koin.js';
 | NES / Famicom | `NES` | fceumm |
 | Super Nintendo | `SNES` | snes9x |
 | Nintendo 64 | `N64` | mupen64plus_next |
-| Game Boy / Color / Advance | `GB`, `GBC`, `GBA` | gambatte, mgba |
+| Game Boy / Color | `GB`, `GBC` | gambatte |
+| Game Boy Advance | `GBA` | mgba |
 | Nintendo DS | `NDS` | desmume |
 | PlayStation | `PS1` | pcsx_rearmed |
 | PSP | `PSP` | ppsspp |
-| Genesis / Mega Drive | `GENESIS` | genesis_plus_gx |
-| Master System | `MASTER_SYSTEM` | gearsystem |
+| Sega Genesis / Mega Drive | `GENESIS` | genesis_plus_gx |
+| Sega Master System | `MASTER_SYSTEM` | gearsystem |
 | Game Gear | `GAME_GEAR` | gearsystem |
-| Saturn | `SATURN` | yabasanshiro |
-| Dreamcast | `DREAMCAST` | flycast |
+| Sega Saturn | `SATURN` | yabasanshiro |
+| Sega Dreamcast | `DREAMCAST` | flycast |
+| Sega CD | `SEGA_CD` | genesis_plus_gx |
 | Neo Geo | `NEOGEO` | fbalpha2012_neogeo |
 | Arcade (MAME) | `ARCADE` | mame2003_plus |
-| ...and 13 more | [See full list](https://koin.js.org/docs/systems) |
+| Atari 2600 | `ATARI2600` | stella |
+| Atari 7800 | `ATARI7800` | prosystem |
+| Atari Lynx | `LYNX` | handy |
+| PC Engine / TurboGrafx-16 | `PCE` | mednafen_pce |
+| WonderSwan / Color | `WS`, `WSC` | mednafen_wswan |
+| Virtual Boy | `VB` | mednafen_vb |
+| Vectrex | `VECTREX` | vecx |
+| Commodore 64 | `C64` | vice_x64 |
+| DOS | `DOS` | dosbox_pure |
+
+[Full system details →](https://koin.js.org/docs/systems)
 
 ## Requirements
 
@@ -123,7 +212,11 @@ async headers() {
 
 ## Documentation
 
-Full documentation at **[koin.js.org](https://koin.js.org/docs)**
+- **[Quick Start](https://koin.js.org/docs/installation)** — Get up and running
+- **[Usage Guide](https://koin.js.org/docs/usage)** — Cloud saves, BIOS, RA integration
+- **[API Reference](https://koin.js.org/docs/api)** — Complete props documentation
+- **[Advanced Guide](https://koin.js.org/docs/advanced)** — Shaders, recording, controls, i18n
+- **[Systems List](https://koin.js.org/docs/systems)** — Per-console configuration
 
 ## License
 

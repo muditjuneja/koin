@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Gauge } from 'lucide-react';
 import { SpeedMultiplier } from '../../hooks/emulator/types';
 
@@ -12,10 +12,22 @@ interface SpeedMenuProps {
 
 export default function SpeedMenu({ speed, onSpeedChange, disabled = false }: SpeedMenuProps) {
     const [showMenu, setShowMenu] = useState(false);
+    const buttonRef = React.useRef<HTMLButtonElement>(null);
+
+    const getMenuPosition = () => {
+        if (!buttonRef.current) return {};
+        const rect = buttonRef.current.getBoundingClientRect();
+        return {
+            bottom: `${window.innerHeight - rect.top + 8}px`,
+            left: `${rect.left + rect.width / 2}px`,
+            transform: 'translateX(-50%)'
+        };
+    };
 
     return (
         <div className="relative">
             <button
+                ref={buttonRef}
                 onClick={() => setShowMenu(!showMenu)}
                 disabled={disabled}
                 className={`
@@ -41,8 +53,11 @@ export default function SpeedMenu({ speed, onSpeedChange, disabled = false }: Sp
 
             {showMenu && (
                 <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-black/90 backdrop-blur-md border border-white/20 rounded-lg p-1.5 shadow-xl z-50 flex flex-col gap-1 min-w-[80px]">
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowMenu(false)} />
+                    <div
+                        className="fixed z-[9999] bg-black/90 backdrop-blur-md border border-white/20 rounded-lg p-1.5 shadow-xl flex flex-col gap-1 min-w-[80px]"
+                        style={getMenuPosition()}
+                    >
                         {SPEED_OPTIONS.map((s) => (
                             <button
                                 key={s}

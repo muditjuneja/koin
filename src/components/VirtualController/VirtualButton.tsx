@@ -5,6 +5,8 @@ import { ButtonConfig } from './layouts';
 import { useTouchHandlers } from './hooks/useTouchHandlers';
 import { getButtonStyles } from './utils/buttonStyles';
 
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
+
 export interface VirtualButtonProps {
   config: ButtonConfig;
   isPressed: boolean;
@@ -37,10 +39,15 @@ const VirtualButton = React.memo(function VirtualButton({
   isLandscape = false,
   systemColor = '#00FF41', // Default retro green
 }: VirtualButtonProps) {
+  const t = useKoinTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isSystemButton = config.type === 'start' || config.type === 'select';
   const displayX = customPosition ? customPosition.x : config.x;
   const displayY = customPosition ? customPosition.y : config.y;
+
+  let label = config.label;
+  if (config.type === 'start') label = t.controls.startBtn;
+  if (config.type === 'select') label = t.controls.selectBtn;
 
   // Setup touch handlers
   const {
@@ -135,10 +142,10 @@ const VirtualButton = React.memo(function VirtualButton({
         userSelect: 'none',
         ...pressedStyle,
       }}
-      aria-label={config.label}
+      aria-label={label}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {config.label}
+      {label}
     </button>
   );
 });

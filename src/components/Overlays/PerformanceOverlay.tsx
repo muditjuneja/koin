@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useState, useEffect, useRef } from 'react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface PerformanceOverlayProps {
     isVisible: boolean;
@@ -24,6 +25,7 @@ const PerformanceOverlay = memo(function PerformanceOverlay({
     coreName = 'Unknown',
     systemColor = '#00FF41',
 }: PerformanceOverlayProps) {
+    const t = useKoinTranslation();
     const [fps, setFps] = useState(0);
     const [frameTime, setFrameTime] = useState(0);
 
@@ -87,7 +89,7 @@ const PerformanceOverlay = memo(function PerformanceOverlay({
             >
                 {/* FPS */}
                 <div className="flex items-center gap-1">
-                    <span className="opacity-60">FPS</span>
+                    <span className="opacity-60 text-[10px] uppercase">{t.overlays.performance.fps}</span>
                     <span className="font-bold">{fps}</span>
                 </div>
 
@@ -95,7 +97,7 @@ const PerformanceOverlay = memo(function PerformanceOverlay({
 
                 {/* Frame Time */}
                 <div className="flex items-center gap-1">
-                    <span className="opacity-60">Frame</span>
+                    <span className="opacity-60 text-[10px] uppercase">{t.overlays.performance.frameTime}</span>
                     <span className="font-bold">{frameTime}ms</span>
                 </div>
 
@@ -103,7 +105,7 @@ const PerformanceOverlay = memo(function PerformanceOverlay({
 
                 {/* Core */}
                 <div className="flex items-center gap-1">
-                    <span className="opacity-60">Core</span>
+                    <span className="opacity-60 text-[10px] uppercase">{t.overlays.performance.core}</span>
                     <span className="font-bold text-white/80">{coreName}</span>
                 </div>
             </div>

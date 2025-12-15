@@ -374,6 +374,45 @@ export default function ApiPage() {
                     </table>
                 </div>
             </section>
+            {/* Internationalization */}
+            <section>
+                <h2 className="text-2xl font-display font-black uppercase mb-4 border-b-4 border-retro-cyan pb-2 inline-block">
+                    Internationalization
+                </h2>
+                <div className="overflow-x-auto">
+                    <table className="w-full font-mono text-sm border-4 border-black">
+                        <thead className="bg-zinc-900 text-white">
+                            <tr>
+                                <th className="p-3 text-left">Prop</th>
+                                <th className="p-3 text-left">Type</th>
+                                <th className="p-3 text-left">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y-2 divide-black">
+                            <tr>
+                                <td className="p-3 font-bold">initialLanguage</td>
+                                <td className="p-3">{`'en' | 'es' | 'fr'`}</td>
+                                <td className="p-3">Initial language (default: &apos;en&apos;)</td>
+                            </tr>
+                            <tr>
+                                <td className="p-3 font-bold">translations</td>
+                                <td className="p-3 text-xs">RecursivePartial{`<KoinTranslations>`}</td>
+                                <td className="p-3">Partial translation overrides for custom text</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="mt-6 border-4 border-black p-4 bg-zinc-100">
+                    <h4 className="font-bold uppercase mb-2">Exported i18n Utilities</h4>
+                    <div className="font-mono text-sm space-y-2">
+                        <p><code className="text-retro-pink">en, es, fr</code> — Built-in translation objects</p>
+                        <p><code className="text-retro-pink">KoinTranslations</code> — TypeScript interface for translations</p>
+                        <p><code className="text-retro-pink">useKoinTranslation()</code> — React hook to access translations</p>
+                        <p><code className="text-retro-pink">KoinI18nProvider</code> — Context provider for custom components</p>
+                    </div>
+                </div>
+            </section>
         </div>
     );
 }

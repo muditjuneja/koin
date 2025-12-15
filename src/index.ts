@@ -13,3 +13,8 @@ export { default as ShaderSelector, SHADER_PRESETS, type ShaderPresetId } from '
 export { default as ShortcutsReference } from './components/UI/ShortcutsReference';
 export * from './hooks/useGameRecording';
 export * from './lib/rom-cache';
+
+// i18n exports
+export { en, es, fr } from './locales';
+export type { KoinTranslations, RecursivePartial } from './locales';
+export { useKoinTranslation, KoinI18nProvider } from './hooks/useKoinTranslation';

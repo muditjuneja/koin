@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useState } from 'react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 import { Circle, Pause, Play, Square, Download } from 'lucide-react';
 
 interface RecordingIndicatorProps {
@@ -28,6 +29,7 @@ const RecordingIndicator = memo(function RecordingIndicator({
     onStop,
     systemColor = '#FF3333',
 }: RecordingIndicatorProps) {
+    const t = useKoinTranslation();
     const [isHovered, setIsHovered] = useState(false);
 
     if (!isRecording) return null;
@@ -79,7 +81,7 @@ const RecordingIndicator = memo(function RecordingIndicator({
                         className="text-xs font-bold"
                         style={{ color: isPaused ? '#FFA500' : '#FF3333' }}
                     >
-                        {isPaused ? 'PAUSED' : 'RECORDING'}
+                        {isPaused ? t.overlays.recording.paused : t.overlays.recording.recording}
                     </span>
                     <span className="text-[10px] text-white/60">{timeString}</span>
                 </div>
@@ -92,7 +94,7 @@ const RecordingIndicator = memo(function RecordingIndicator({
                             <button
                                 onClick={onResume}
                                 className="p-1.5 rounded hover:bg-white/20 transition-colors"
-                                title="Resume recording"
+                                title={t.overlays.recording.resume}
                             >
                                 <Play size={14} className="text-orange-400" fill="#FFA500" />
                             </button>
@@ -100,7 +102,7 @@ const RecordingIndicator = memo(function RecordingIndicator({
                             <button
                                 onClick={onPause}
                                 className="p-1.5 rounded hover:bg-white/20 transition-colors"
-                                title="Pause recording"
+                                title={t.overlays.recording.pause}
                             >
                                 <Pause size={14} className="text-white/80" />
                             </button>
@@ -110,7 +112,7 @@ const RecordingIndicator = memo(function RecordingIndicator({
                         <button
                             onClick={onStop}
                             className="p-1.5 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1"
-                            title="Stop and save recording"
+                            title={t.overlays.recording.stop}
                         >
                             <Square size={12} fill="#FF3333" className="text-red-500" />
                             <Download size={12} className="text-white/60" />
@@ -122,7 +124,7 @@ const RecordingIndicator = memo(function RecordingIndicator({
             {/* Hint when not hovered */}
             {!isHovered && (
                 <div className="text-[9px] text-white/40 text-center mt-1">
-                    Hover for controls
+                    {t.overlays.recording.hover}
                 </div>
             )}
         </div>

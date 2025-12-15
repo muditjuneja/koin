@@ -3,6 +3,7 @@ import { ShaderPresetId } from './UI/ShaderSelector';
 // Re-export from unified controls module for backwards compatibility
 import { KeyboardMapping, DEFAULT_KEYBOARD } from '../lib/controls';
 import { RACredentials, RAGameExtended, RAAchievement } from '../lib/retroachievements';
+import { KoinTranslations, RecursivePartial } from '../locales/types';
 
 export interface SaveSlot {
     slot: number;
@@ -85,6 +86,9 @@ export interface GamePlayerProps {
     onRALogin?: (username: string, password: string) => Promise<boolean>;
     onRALogout?: () => void;
     onRAHardcoreChange?: (enabled: boolean) => void;
+
+    // Internationalization
+    translations?: RecursivePartial<KoinTranslations>;
 }
 
 export interface PlayerControlsProps {
@@ -123,6 +127,7 @@ export interface PlayerControlsProps {
     // Gamepad indicator
     gamepadCount?: number; // Number of connected gamepads
     onGamepadSettings?: () => void; // Open gamepad settings modal
+    onSettings?: () => void;
     // Volume controls
     volume?: number; // 0-100
     isMuted?: boolean;

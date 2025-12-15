@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Trophy, Loader2 } from 'lucide-react';
+import { Loader2, Trophy } from 'lucide-react';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 
 interface RAButtonProps {
   onClick: () => void;
@@ -25,6 +25,22 @@ export default function RAButton({
   achievementCount,
   className = '',
 }: RAButtonProps) {
+  const t = useKoinTranslation();
+
+  const title = isGameFound
+    ? `${t.retroAchievements.title} (${achievementCount} achievements)`
+    : isConnected
+      ? t.retroAchievements.connected
+      : t.retroAchievements.title;
+
+  const tooltip = isIdentifying
+    ? t.retroAchievements.identifying
+    : isGameFound
+      ? t.retroAchievements.achievementsAvailable.replace('{{count}}', achievementCount.toString())
+      : isConnected
+        ? t.retroAchievements.gameNotSupported
+        : t.retroAchievements.connect;
+
   return (
     <div className={`relative group ${className}`}>
       <button
@@ -34,38 +50,38 @@ export default function RAButton({
           group relative flex flex-col items-center gap-1 px-3 py-2 rounded-lg
           transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
           select-none
-          ${isGameFound 
-            ? 'bg-gradient-to-b from-yellow-500/30 to-orange-500/20 text-yellow-400 ring-1 ring-yellow-500/50 shadow-[0_0_12px_rgba(234,179,8,0.3)]' 
+          ${isGameFound
+            ? 'bg-gradient-to-b from-yellow-500/30 to-orange-500/20 text-yellow-400 ring-1 ring-yellow-500/50 shadow-[0_0_12px_rgba(234,179,8,0.3)]'
             : isConnected
-              ? 'bg-yellow-500/10 text-yellow-400/70 ring-1 ring-yellow-500/30' 
+              ? 'bg-yellow-500/10 text-yellow-400/70 ring-1 ring-yellow-500/30'
               : 'hover:bg-white/10 text-gray-400 hover:text-white'
           }
         `}
-        title={isGameFound ? `RetroAchievements (${achievementCount} achievements)` : isConnected ? 'RetroAchievements (connected)' : 'RetroAchievements'}
+        title={title}
       >
         {isIdentifying ? (
           <Loader2 size={20} className="animate-spin text-yellow-400" />
         ) : (
-          <Trophy 
-            size={20} 
+          <Trophy
+            size={20}
             className={`
               transition-all group-hover:scale-110 
               ${isGameFound ? 'drop-shadow-[0_0_8px_rgba(234,179,8,0.7)] text-yellow-400' : ''}
               ${isConnected && !isGameFound ? 'opacity-70' : ''}
-            `} 
+            `}
           />
         )}
         <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">
           {isIdentifying ? '...' : isGameFound ? achievementCount : 'RA'}
         </span>
       </button>
-      
+
       {/* Status indicator dot */}
       {isConnected && (
         <div className={`
           absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-black
-          ${isGameFound 
-            ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' 
+          ${isGameFound
+            ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]'
             : 'bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.6)]'
           }
         `}>
@@ -74,17 +90,10 @@ export default function RAButton({
           )}
         </div>
       )}
-      
+
       {/* Tooltip */}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900/95 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-white/10">
-        {isIdentifying 
-          ? 'Identifying game...' 
-          : isGameFound 
-            ? `${achievementCount} achievements available`
-            : isConnected 
-              ? 'Connected - Game not in RA database' 
-              : 'Connect RetroAchievements'
-        }
+        {tooltip}
       </div>
     </div>
   );

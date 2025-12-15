@@ -1,15 +1,18 @@
 import { memo } from 'react';
-import { Maximize, Gamepad2, Joystick, Code, Power, HelpCircle } from 'lucide-react';
+import { Maximize, Gamepad2, Joystick, Code, Power, HelpCircle, Settings } from 'lucide-react';
 import { ControlButton } from './ControlButton';
 import ShaderDropdown from './ShaderDropdown';
 import RAButton from '../RASidebar/RAButton';
 import HardcoreTooltip from '../UI/HardcoreTooltip';
 import { ShaderPresetId } from '../UI/ShaderSelector';
+import { useKoinTranslation } from '../../hooks/useKoinTranslation';
+import { RAHardcodeRestrictions } from '../types';
 
 interface SettingsControlsProps {
     onFullscreen: () => void;
     onControls: () => void;
     onGamepadSettings?: () => void;
+    onSettings?: () => void;
     onCheats: () => void;
     onRetroAchievements: () => void;
     onShowShortcuts?: () => void;
@@ -21,9 +24,7 @@ interface SettingsControlsProps {
     disabled?: boolean;
     systemColor?: string;
     gamepadCount?: number;
-    hardcoreRestrictions?: {
-        canUseCheats?: boolean;
-    };
+    hardcoreRestrictions?: RAHardcodeRestrictions;
     raConnected?: boolean;
     raGameFound?: boolean;
     raAchievementCount?: number;
@@ -34,6 +35,7 @@ export const SettingsControls = memo(function SettingsControls({
     onFullscreen,
     onControls,
     onGamepadSettings,
+    onSettings,
     onCheats,
     onRetroAchievements,
     onShowShortcuts,
@@ -50,13 +52,19 @@ export const SettingsControls = memo(function SettingsControls({
     raAchievementCount = 0,
     raIsIdentifying = false,
 }: SettingsControlsProps) {
-    // Build gamepad indicator text - show "P1 P2" etc for each connected pad
+    const t = useKoinTranslation();
+
+    // Build gamepad indicator text - simple replacement
     const gamepadIndicatorText = gamepadCount > 0
         ? Array.from({ length: gamepadCount }, (_, i) => `P${i + 1}`).join(' ')
         : '';
 
+    const gamepadConnectedTitle = t.controls.gamepadConnected
+        .replace('{{count}}', gamepadCount.toString())
+        .replace('{{plural}}', gamepadCount > 1 ? 's' : '');
+
     return (
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-center gap-4 w-full sm:w-auto sm:flex-nowrap sm:gap-3 flex-shrink-0">
             {/* Shader Selector */}
             <ShaderDropdown
                 currentShader={currentShader}
@@ -68,20 +76,20 @@ export const SettingsControls = memo(function SettingsControls({
 
             {/* Help / Shortcuts button */}
             {onShowShortcuts && (
-                <ControlButton onClick={onShowShortcuts} icon={HelpCircle} label="Help" disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
+                <ControlButton onClick={onShowShortcuts} icon={HelpCircle} label={t.controls.help} disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
             )}
 
             {/* Fullscreen button - hidden on mobile (we have floating button) */}
-            <ControlButton onClick={onFullscreen} icon={Maximize} label="Full" disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
+            <ControlButton onClick={onFullscreen} icon={Maximize} label={t.controls.full} disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
             {/* Hide some buttons on mobile to save space */}
-            <ControlButton onClick={onControls} icon={Gamepad2} label="Keys" disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
+            <ControlButton onClick={onControls} icon={Gamepad2} label={t.controls.keys} disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
 
             {/* Gamepad indicator - shows connected controllers OR hint to press button */}
             {gamepadCount > 0 ? (
                 <button
                     onClick={onGamepadSettings}
                     className="relative group flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/10 flex-shrink-0 hidden sm:flex"
-                    title={`${gamepadCount} controller${gamepadCount > 1 ? 's' : ''} connected - click to configure`}
+                    title={gamepadConnectedTitle}
                 >
                     <div className="relative">
                         <Joystick size={20} style={{ color: systemColor }} className="transition-transform group-hover:scale-110" />
@@ -99,8 +107,8 @@ export const SettingsControls = memo(function SettingsControls({
                 /* Neo-brutalist hint for users with no detected gamepad */
                 <button
                     onClick={onGamepadSettings}
-                    className="relative group flex-col items-center gap-1 px-3 py-2 transition-all duration-200 flex-shrink-0 hidden sm:flex"
-                    title="No controller detected - press any button on your gamepad to connect"
+                    className="relative group flex-col items-center gap-1 px-3 py-2 transition-all duration-200 flex-shrink-0"
+                    title={t.controls.noGamepad}
                     style={{
                         border: '2px dashed #6b7280',
                         backgroundColor: 'transparent',
@@ -109,7 +117,7 @@ export const SettingsControls = memo(function SettingsControls({
                     <div className="relative flex items-center gap-2">
                         <Gamepad2 size={18} className="text-gray-400 transition-transform group-hover:scale-110 group-hover:text-white" />
                         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 group-hover:text-white whitespace-nowrap">
-                            Press
+                            {t.controls.press}
                         </span>
                         {/* Circle representing a button */}
                         <div className="w-5 h-5 rounded-full border-2 border-gray-400 group-hover:border-white flex items-center justify-center animate-pulse">
@@ -123,11 +131,14 @@ export const SettingsControls = memo(function SettingsControls({
                 <ControlButton
                     onClick={hardcoreRestrictions?.canUseCheats === false ? undefined : onCheats}
                     icon={Code}
-                    label="Cheats"
+                    label={t.settings.cheats}
                     disabled={disabled || hardcoreRestrictions?.canUseCheats === false}
                     systemColor={systemColor}
                 />
-                <HardcoreTooltip show={hardcoreRestrictions?.canUseCheats === false} />
+                <HardcoreTooltip
+                    show={hardcoreRestrictions?.canUseCheats === false}
+                    message={hardcoreRestrictions?.isHardcore ? t.common.disabledInHardcore : t.common.notSupported}
+                />
             </div>
             <RAButton
                 onClick={onRetroAchievements}
@@ -138,8 +149,18 @@ export const SettingsControls = memo(function SettingsControls({
                 achievementCount={raAchievementCount}
                 className="hidden sm:flex"
             />
+            {onSettings && (
+                <ControlButton
+                    onClick={onSettings}
+                    icon={Settings}
+                    label={t.settings.title}
+                    disabled={disabled}
+                    systemColor={systemColor}
+                    className="hidden sm:flex"
+                />
+            )}
             <div className="w-px h-8 bg-white/10 mx-2 hidden sm:block" />
-            <ControlButton onClick={onExit} icon={Power} label="Exit" danger disabled={disabled} systemColor={systemColor} />
+            <ControlButton onClick={onExit} icon={Power} label={t.settings.exit} danger disabled={disabled} systemColor={systemColor} />
         </div>
     );
 });
