@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ShaderPresetId } from '../components/UI/ShaderSelector';
+import { ShaderPresetId } from '../lib/shader-presets';
 
 const STORAGE_KEY = 'koin-player-settings';
 
