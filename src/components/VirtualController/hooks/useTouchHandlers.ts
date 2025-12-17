@@ -1,10 +1,11 @@
 /**
  * Hook for handling touch events on virtual buttons
- * Handles both button presses and drag functionality
+ * Handles both button presses and drag functionality via useDrag
  */
 
 import { useRef, useCallback } from 'react';
 import { ButtonType } from '../layouts';
+import { useDrag } from './useDrag';
 
 export interface UseTouchHandlersProps {
   buttonType: ButtonType;
@@ -28,10 +29,6 @@ export interface TouchHandlers {
   cleanup: () => void;
 }
 
-const DRAG_HOLD_DELAY = 350; // ms - aligned with Dpad
-const DRAG_MOVE_THRESHOLD = 10; // pixels
-const DRAG_CENTER_THRESHOLD = 0.4; // 40% of button size
-
 export function useTouchHandlers({
   buttonType,
   isSystemButton,
@@ -46,40 +43,31 @@ export function useTouchHandlers({
   onPositionChange,
 }: UseTouchHandlersProps): TouchHandlers {
   const isDraggingRef = useRef(false);
-  const dragStartRef = useRef({ x: 0, y: 0 });
-  const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartPosRef = useRef({ x: 0, y: 0 });
 
-  const clearDragTimer = useCallback(() => {
-    if (dragTimerRef.current) {
-      clearTimeout(dragTimerRef.current);
-      dragTimerRef.current = null;
-    }
-  }, []);
-
-  const startDragging = useCallback(
-    (touchX: number, touchY: number) => {
+  // Use shared drag hook
+  const drag = useDrag({
+    elementSize: buttonSize,
+    displayX,
+    displayY,
+    containerWidth,
+    containerHeight,
+    onPositionChange,
+    centerThreshold: 0.4,
+    onDragStart: () => {
       isDraggingRef.current = true;
-      dragStartRef.current = {
-        x: touchX - (displayX / 100) * containerWidth,
-        y: touchY - (displayY / 100) * containerHeight,
-      };
-      // Haptic feedback for drag activation (matches D-pad)
-      if (navigator.vibrate) {
-        navigator.vibrate([10, 30, 10]);
-      }
       // Release button press when drag starts
       if (!isSystemButton) {
         onRelease(buttonType);
       }
     },
-    [displayX, displayY, containerWidth, containerHeight, isSystemButton, buttonType, onRelease]
-  );
+    onDragEnd: () => {
+      isDraggingRef.current = false;
+    },
+  });
 
   const handleTouchStart = useCallback(
     (e: TouchEvent) => {
       const touch = e.touches[0];
-      touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
 
       // Always prevent default to avoid delays and context menus
       e.preventDefault();
@@ -101,25 +89,10 @@ export function useTouchHandlers({
         const target = e.currentTarget as HTMLElement;
         if (!target) return;
         const rect = target.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const distance = Math.sqrt(
-          Math.pow(touch.clientX - centerX, 2) + Math.pow(touch.clientY - centerY, 2)
-        );
-        const dragThreshold = buttonSize * DRAG_CENTER_THRESHOLD;
-
-        // Only enable drag if touch is near center
-        if (distance < dragThreshold) {
-          // Start drag timer - if user holds for delay, enable dragging
-          dragTimerRef.current = setTimeout(() => {
-            if (!isDraggingRef.current) {
-              startDragging(touch.clientX, touch.clientY);
-            }
-          }, DRAG_HOLD_DELAY);
-        }
+        drag.checkDragStart(touch.clientX, touch.clientY, rect);
       }
     },
-    [isSystemButton, buttonType, onPress, onPressDown, onPositionChange, buttonSize, startDragging]
+    [isSystemButton, buttonType, onPress, onPressDown, onPositionChange, drag]
   );
 
   const handleTouchMove = useCallback(
@@ -128,49 +101,27 @@ export function useTouchHandlers({
 
       // Check if user moved significantly (start drag immediately if moved)
       if (onPositionChange && !isDraggingRef.current) {
-        const moveDistance = Math.sqrt(
-          Math.pow(touch.clientX - touchStartPosRef.current.x, 2) +
-          Math.pow(touch.clientY - touchStartPosRef.current.y, 2)
-        );
-
-        // If moved more than threshold, start dragging immediately
-        if (moveDistance > DRAG_MOVE_THRESHOLD) {
-          clearDragTimer();
-          startDragging(touch.clientX, touch.clientY);
-        }
+        drag.checkMoveThreshold(touch.clientX, touch.clientY);
       }
 
       // Handle drag movement
-      if (isDraggingRef.current && onPositionChange) {
+      if (isDraggingRef.current) {
         e.preventDefault();
         e.stopPropagation();
-
-        const newX = touch.clientX - dragStartRef.current.x;
-        const newY = touch.clientY - dragStartRef.current.y;
-
-        // Convert to percentage
-        const newXPercent = (newX / containerWidth) * 100;
-        const newYPercent = (newY / containerHeight) * 100;
-
-        // Constrain to screen bounds (with margin for button size)
-        const margin = (buttonSize / 2 / Math.min(containerWidth, containerHeight)) * 100;
-        const constrainedX = Math.max(margin, Math.min(100 - margin, newXPercent));
-        const constrainedY = Math.max(margin, Math.min(100 - margin, newYPercent));
-
-        onPositionChange(constrainedX, constrainedY);
+        drag.handleDragMove(touch.clientX, touch.clientY);
       }
     },
-    [onPositionChange, clearDragTimer, startDragging, containerWidth, containerHeight, buttonSize]
+    [onPositionChange, drag]
   );
 
   const handleTouchEnd = useCallback(
     (e: TouchEvent) => {
-      clearDragTimer();
+      drag.clearDragTimer();
 
       if (isDraggingRef.current) {
         e.preventDefault();
         e.stopPropagation();
-        isDraggingRef.current = false;
+        drag.handleDragEnd();
         return;
       }
 
@@ -182,17 +133,17 @@ export function useTouchHandlers({
         onRelease(buttonType);
       }
     },
-    [clearDragTimer, isSystemButton, buttonType, onRelease]
+    [drag, isSystemButton, buttonType, onRelease]
   );
 
   const handleTouchCancel = useCallback(
     (e: TouchEvent) => {
-      clearDragTimer();
+      drag.clearDragTimer();
 
       if (isDraggingRef.current) {
         e.preventDefault();
         e.stopPropagation();
-        isDraggingRef.current = false;
+        drag.handleDragEnd();
         return;
       }
 
@@ -204,12 +155,12 @@ export function useTouchHandlers({
         onRelease(buttonType);
       }
     },
-    [clearDragTimer, isSystemButton, buttonType, onRelease]
+    [drag, isSystemButton, buttonType, onRelease]
   );
 
   const cleanup = useCallback(() => {
-    clearDragTimer();
-  }, [clearDragTimer]);
+    drag.clearDragTimer();
+  }, [drag]);
 
   return {
     handleTouchStart,
@@ -219,4 +170,3 @@ export function useTouchHandlers({
     cleanup,
   };
 }
-

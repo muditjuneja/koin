@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { dispatchKeyboardEvent } from './utils/keyboardEvents';
+import { useDrag } from './hooks/useDrag';
 import { ControlMapping } from '../../lib/controls/types';
 
 interface DpadProps {
@@ -19,7 +20,6 @@ interface DpadProps {
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 
-const DRAG_HOLD_DELAY = 350; // ms to hold before drag mode
 const CENTER_TOUCH_RADIUS = 0.25; // 25% of size - touch area for drag activation
 
 /**
@@ -44,12 +44,6 @@ const Dpad = React.memo(function Dpad({
     const activeTouchRef = useRef<number | null>(null);
     const activeDirectionsRef = useRef<Set<Direction>>(new Set());
 
-    // Drag state
-    const [isDragging, setIsDragging] = useState(false);
-    const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const dragStartRef = useRef({ x: 0, y: 0, touchX: 0, touchY: 0 });
-    const touchStartPosRef = useRef({ x: 0, y: 0, time: 0 });
-
     // Refs for visual elements
     const upPathRef = useRef<SVGPathElement>(null);
     const downPathRef = useRef<SVGPathElement>(null);
@@ -60,6 +54,15 @@ const Dpad = React.memo(function Dpad({
     // Use custom position if provided, otherwise defaults
     const displayX = customPosition ? customPosition.x : x;
     const displayY = customPosition ? customPosition.y : y;
+
+    // Release all active directions helper
+    const releaseAllDirections = useCallback((getKeyCode: (dir: Direction) => string) => {
+        activeDirectionsRef.current.forEach(dir => {
+            const keyCode = getKeyCode(dir);
+            if (keyCode) dispatchKeyboardEvent('keyup', keyCode);
+        });
+        activeDirectionsRef.current = new Set();
+    }, []);
 
     const getKeyCode = useCallback((direction: Direction): string => {
         if (!controls) {
@@ -73,6 +76,22 @@ const Dpad = React.memo(function Dpad({
         }
         return controls[direction] || '';
     }, [controls]);
+
+    // Use shared drag hook
+    const drag = useDrag({
+        elementSize: size,
+        displayX,
+        displayY,
+        containerWidth,
+        containerHeight,
+        onPositionChange,
+        centerThreshold: CENTER_TOUCH_RADIUS,
+        onDragStart: () => {
+            // Release all directions when entering drag mode
+            releaseAllDirections(getKeyCode);
+            updateVisuals(new Set());
+        },
+    });
 
     const getDirectionsFromTouch = useCallback((touchX: number, touchY: number, rect: DOMRect): Set<Direction> => {
         const centerX = rect.left + rect.width / 2;
@@ -102,7 +121,7 @@ const Dpad = React.memo(function Dpad({
         const inactiveStroke = 'rgba(255, 255, 255, 0.2)';
         const glow = `0 0 15px ${systemColor}`;
 
-        const updatePart = (ref: React.RefObject<SVGPathElement>, isActive: boolean) => {
+        const updatePart = (ref: React.RefObject<SVGPathElement | null>, isActive: boolean) => {
             if (ref.current) {
                 ref.current.style.fill = isActive ? activeFill : inactiveFill;
                 ref.current.style.stroke = isActive ? activeStroke : inactiveStroke;
@@ -148,64 +167,26 @@ const Dpad = React.memo(function Dpad({
         updateVisuals(newDirections);
     }, [getKeyCode, updateVisuals]);
 
-    const clearDragTimer = useCallback(() => {
-        if (dragTimerRef.current) {
-            clearTimeout(dragTimerRef.current);
-            dragTimerRef.current = null;
-        }
-    }, []);
-
-    const startDragging = useCallback((touchX: number, touchY: number) => {
-        setIsDragging(true);
-        dragStartRef.current = {
-            x: displayX,
-            y: displayY,
-            touchX,
-            touchY,
-        };
-        // Release all directions when entering drag mode
-        activeDirectionsRef.current.forEach(dir => {
-            const keyCode = getKeyCode(dir);
-            if (keyCode) dispatchKeyboardEvent('keyup', keyCode);
-        });
-        activeDirectionsRef.current = new Set();
-        updateVisuals(new Set());
-
-        if (navigator.vibrate) navigator.vibrate([10, 30, 10]); // Distinct drag feedback
-    }, [displayX, displayY, getKeyCode, updateVisuals]);
-
     const handleTouchStart = useCallback((e: TouchEvent) => {
         e.preventDefault();
         if (activeTouchRef.current !== null) return;
 
         const touch = e.changedTouches[0];
         activeTouchRef.current = touch.identifier;
-        touchStartPosRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
 
         const rect = dpadRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        // Check if touch is on center (for drag)
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const distFromCenter = Math.sqrt(
-            Math.pow(touch.clientX - centerX, 2) +
-            Math.pow(touch.clientY - centerY, 2)
-        );
-        const centerRadius = size * CENTER_TOUCH_RADIUS;
-
-        if (distFromCenter < centerRadius && onPositionChange) {
-            // Start drag timer for center touch
-            dragTimerRef.current = setTimeout(() => {
-                startDragging(touch.clientX, touch.clientY);
-            }, DRAG_HOLD_DELAY);
+        // Check if touch is on center (for drag) - use useDrag hook
+        if (onPositionChange) {
+            drag.checkDragStart(touch.clientX, touch.clientY, rect);
         }
 
-        // Normal direction detection
-        if (!isDragging) {
+        // Normal direction detection (only if not dragging)
+        if (!drag.isDragging) {
             updateDirections(getDirectionsFromTouch(touch.clientX, touch.clientY, rect));
         }
-    }, [getDirectionsFromTouch, updateDirections, isDragging, size, onPositionChange, startDragging]);
+    }, [getDirectionsFromTouch, updateDirections, onPositionChange, drag]);
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
         e.preventDefault();
@@ -219,41 +200,26 @@ const Dpad = React.memo(function Dpad({
         }
         if (!touch) return;
 
-        if (isDragging && onPositionChange) {
-            // Handle drag movement
-            const deltaX = touch.clientX - dragStartRef.current.touchX;
-            const deltaY = touch.clientY - dragStartRef.current.touchY;
-
-            const newXPercent = dragStartRef.current.x + (deltaX / containerWidth) * 100;
-            const newYPercent = dragStartRef.current.y + (deltaY / containerHeight) * 100;
-
-            // Constrain to screen bounds
-            const margin = (size / 2 / Math.min(containerWidth, containerHeight)) * 100;
-            const constrainedX = Math.max(margin, Math.min(100 - margin, newXPercent));
-            const constrainedY = Math.max(margin, Math.min(100 - margin, newYPercent));
-
-            onPositionChange(constrainedX, constrainedY);
+        if (drag.isDragging) {
+            // Handle drag movement via useDrag hook
+            drag.handleDragMove(touch.clientX, touch.clientY);
         } else {
             // Check if moved significantly - cancel drag timer
-            const moveDistance = Math.sqrt(
-                Math.pow(touch.clientX - touchStartPosRef.current.x, 2) +
-                Math.pow(touch.clientY - touchStartPosRef.current.y, 2)
-            );
-            if (moveDistance > 15) {
-                clearDragTimer();
-            }
-
-            // Normal direction detection
             const rect = dpadRef.current?.getBoundingClientRect();
             if (rect) {
+                // For D-pad, we cancel drag if we move to detect directions
+                // (different behavior from buttons which start dragging on move)
+                drag.clearDragTimer();
+
+                // Normal direction detection
                 updateDirections(getDirectionsFromTouch(touch.clientX, touch.clientY, rect));
             }
         }
-    }, [isDragging, onPositionChange, containerWidth, containerHeight, size, getDirectionsFromTouch, updateDirections, clearDragTimer]);
+    }, [drag, getDirectionsFromTouch, updateDirections]);
 
     const handleTouchEnd = useCallback((e: TouchEvent) => {
         e.preventDefault();
-        clearDragTimer();
+        drag.clearDragTimer();
 
         let touchEnded = false;
         for (let i = 0; i < e.changedTouches.length; i++) {
@@ -266,8 +232,8 @@ const Dpad = React.memo(function Dpad({
         if (touchEnded) {
             activeTouchRef.current = null;
 
-            if (isDragging) {
-                setIsDragging(false);
+            if (drag.isDragging) {
+                drag.handleDragEnd();
             } else {
                 // Release all directions
                 activeDirectionsRef.current.forEach(dir => {
@@ -278,7 +244,7 @@ const Dpad = React.memo(function Dpad({
                 updateVisuals(new Set());
             }
         }
-    }, [getKeyCode, updateVisuals, isDragging, clearDragTimer]);
+    }, [getKeyCode, updateVisuals, drag]);
 
     useEffect(() => {
         const dpad = dpadRef.current;
@@ -294,9 +260,9 @@ const Dpad = React.memo(function Dpad({
             dpad.removeEventListener('touchmove', handleTouchMove);
             dpad.removeEventListener('touchend', handleTouchEnd);
             dpad.removeEventListener('touchcancel', handleTouchEnd);
-            clearDragTimer();
+            drag.clearDragTimer();
         };
-    }, [handleTouchStart, handleTouchMove, handleTouchEnd, clearDragTimer]);
+    }, [handleTouchStart, handleTouchMove, handleTouchEnd, drag]);
 
     const leftPx = (displayX / 100) * containerWidth - size / 2;
     const topPx = (displayY / 100) * containerHeight - size / 2;
@@ -309,22 +275,22 @@ const Dpad = React.memo(function Dpad({
     return (
         <div
             ref={dpadRef}
-            className={`absolute pointer-events-auto touch-manipulation select-none ${isDragging ? 'opacity-60' : ''}`}
+            className={`absolute pointer-events-auto touch-manipulation select-none ${drag.isDragging ? 'opacity-60' : ''}`}
             style={{
                 top: 0,
                 left: 0,
-                transform: `translate3d(${leftPx}px, ${topPx}px, 0)${isDragging ? ' scale(1.05)' : ''}`,
+                transform: `translate3d(${leftPx}px, ${topPx}px, 0)${drag.isDragging ? ' scale(1.05)' : ''}`,
                 width: size,
                 height: size,
                 opacity: isLandscape ? 0.75 : 0.9,
                 WebkitTouchCallout: 'none',
                 WebkitUserSelect: 'none',
                 touchAction: 'none',
-                transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                transition: drag.isDragging ? 'none' : 'transform 0.1s ease-out',
             }}
         >
             {/* Base layer */}
-            <div className={`absolute inset-0 rounded-full bg-black/40 backdrop-blur-md border shadow-lg ${isDragging ? 'border-white/50 ring-2 ring-white/30' : 'border-white/10'}`} />
+            <div className={`absolute inset-0 rounded-full bg-black/40 backdrop-blur-md border shadow-lg ${drag.isDragging ? 'border-white/50 ring-2 ring-white/30' : 'border-white/10'}`} />
 
             <svg width="100%" height="100%" viewBox="0 0 100 100" className="drop-shadow-xl relative z-10">
                 <path ref={upPathRef} d={dUp} fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.2)" strokeWidth="1" className="transition-all duration-75" />
@@ -336,9 +302,9 @@ const Dpad = React.memo(function Dpad({
                 <circle
                     ref={centerCircleRef}
                     cx="50" cy="50" r="12"
-                    fill={isDragging ? systemColor : 'rgba(0,0,0,0.5)'}
-                    stroke={isDragging ? '#fff' : 'rgba(255,255,255,0.3)'}
-                    strokeWidth={isDragging ? 2 : 1}
+                    fill={drag.isDragging ? systemColor : 'rgba(0,0,0,0.5)'}
+                    stroke={drag.isDragging ? '#fff' : 'rgba(255,255,255,0.3)'}
+                    strokeWidth={drag.isDragging ? 2 : 1}
                 />
 
                 {/* Arrow icons */}

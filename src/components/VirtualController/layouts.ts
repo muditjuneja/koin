@@ -117,7 +117,8 @@ export const SIX_BUTTON_LAYOUT: ControllerLayout = {
     { type: 'y', label: 'A', x: 72, y: 64, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true },
     { type: 'b', label: 'B', x: 82, y: 60, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true },
     { type: 'a', label: 'C', x: 92, y: 56, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true },
-    { type: 'start', label: 'START', x: 50, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'select', label: 'SELECT', x: SELECT_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'start', label: 'START', x: START_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
   ],
 };
 
@@ -141,7 +142,8 @@ export const SATURN_LAYOUT: ControllerLayout = {
     // Triggers (L2/R2 for Saturn L/R)
     { type: 'l2', label: 'L', x: 8, y: 20, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
     { type: 'r2', label: 'R', x: 92, y: 20, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
-    { type: 'start', label: 'START', x: 50, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'select', label: 'SELECT', x: SELECT_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'start', label: 'START', x: START_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
   ],
 };
 
@@ -203,9 +205,10 @@ export const N64_LAYOUT: ControllerLayout = {
     // Shoulders
     { type: 'l', label: 'L', x: 8, y: 20, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
     { type: 'r', label: 'R', x: 92, y: 20, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
-    // Z trigger (use select as workaround since it's a unique button)
-    { type: 'select', label: 'Z', x: 8, y: 35, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
-    { type: 'start', label: 'START', x: 50, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    // Z trigger (use l3 button for Z trigger)
+    { type: 'l3', label: 'Z', x: 8, y: 35, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
+    { type: 'select', label: 'SELECT', x: SELECT_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'start', label: 'START', x: START_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
   ],
 };
 
@@ -224,7 +227,8 @@ export const DREAMCAST_LAYOUT: ControllerLayout = {
     // Triggers
     { type: 'l', label: 'L', x: 8, y: 20, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
     { type: 'r', label: 'R', x: 92, y: 20, size: BUTTON_MEDIUM, showInPortrait: true, showInLandscape: true, shape: 'rect' },
-    { type: 'start', label: 'START', x: 50, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'select', label: 'SELECT', x: SELECT_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
+    { type: 'start', label: 'START', x: START_X, y: START_SELECT_Y, size: BUTTON_SMALL, showInPortrait: true, showInLandscape: true, shape: 'pill' },
   ],
 };
 

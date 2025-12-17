@@ -10,6 +10,7 @@ import ShortcutsModal from './Modals/ShortcutsModal';
 import { VirtualController } from './VirtualController';
 import FloatingExitButton from './UI/FloatingExitButton';
 import FloatingFullscreenButton from './UI/FloatingFullscreenButton';
+import FloatingPauseButton from './UI/FloatingPauseButton';
 import GameCanvas from './GameCanvas';
 import GameModals from './GameModals';
 import RASidebar from './RASidebar';
@@ -359,6 +360,14 @@ const GamePlayerInner = memo(function GamePlayerInner(
                         <FloatingExitButton
                             onClick={handleFullscreen}
                             disabled={status === 'loading' || status === 'error'}
+                        />
+                    )}
+
+                    {isFullscreen && isMobile && (status === 'running' || status === 'paused') && (
+                        <FloatingPauseButton
+                            isPaused={isPaused}
+                            onClick={handlePauseToggle}
+                            systemColor={systemColor}
                         />
                     )}
 
