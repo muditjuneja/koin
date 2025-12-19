@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { ButtonConfig } from './layouts';
 import { useTouchHandlers } from './hooks/useTouchHandlers';
+import { useTouchEvents } from './hooks/useTouchEvents';
 import { getButtonStyles } from './utils/buttonStyles';
 
 import { useKoinTranslation } from '../../hooks/useKoinTranslation';
@@ -70,24 +71,13 @@ const VirtualButton = React.memo(function VirtualButton({
     onPositionChange,
   });
 
-  // Setup event listeners
-  useEffect(() => {
-    const button = buttonRef.current;
-    if (!button) return;
-
-    button.addEventListener('touchstart', handleTouchStart, { passive: false });
-    button.addEventListener('touchmove', handleTouchMove, { passive: false });
-    button.addEventListener('touchend', handleTouchEnd, { passive: false });
-    button.addEventListener('touchcancel', handleTouchCancel, { passive: false });
-
-    return () => {
-      button.removeEventListener('touchstart', handleTouchStart);
-      button.removeEventListener('touchmove', handleTouchMove);
-      button.removeEventListener('touchend', handleTouchEnd);
-      button.removeEventListener('touchcancel', handleTouchCancel);
-      cleanup();
-    };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, cleanup]);
+  // Use shared touch events hook for event listener management
+  useTouchEvents(buttonRef, {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onTouchCancel: handleTouchCancel,
+  }, { cleanup });
 
   // Calculate position (percentage based)
   const leftPercent = (displayX / 100) * containerWidth - config.size / 2;

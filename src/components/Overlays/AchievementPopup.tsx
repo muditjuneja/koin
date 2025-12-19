@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Trophy, X } from 'lucide-react';
 import { RAAchievement, getAchievementBadgeUrl } from '../../lib/retroachievements';
+import { useAnimatedVisibility } from '../../hooks/useAnimatedVisibility';
 
 interface AchievementPopupProps {
   achievement: RAAchievement;
@@ -17,36 +17,15 @@ export default function AchievementPopup({
   onDismiss,
   autoDismissMs = 5000,
 }: AchievementPopupProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
-
-  useEffect(() => {
-    // Animate in
-    requestAnimationFrame(() => {
-      setIsVisible(true);
-    });
-
-    // Auto dismiss
-    const timer = setTimeout(() => {
-      handleDismiss();
-    }, autoDismissMs);
-
-    return () => clearTimeout(timer);
-  }, [autoDismissMs]);
-
-  const handleDismiss = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      onDismiss();
-    }, 300);
-  };
+  const { slideInRightClasses, triggerExit } = useAnimatedVisibility({
+    exitDuration: 300,
+    onExit: onDismiss,
+    autoDismissMs,
+  });
 
   return (
     <div
-      className={`fixed top-4 right-4 z-[100] transition-all duration-300 ${isVisible && !isExiting
-        ? 'translate-x-0 opacity-100'
-        : 'translate-x-full opacity-0'
-        }`}
+      className={`fixed top-4 right-4 z-[100] transition-all duration-300 ${slideInRightClasses}`}
     >
       {/* Glow effect */}
       <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 to-orange-500 blur-lg opacity-50 animate-pulse" />
@@ -92,7 +71,7 @@ export default function AchievementPopup({
 
           {/* Close button */}
           <button
-            onClick={handleDismiss}
+            onClick={triggerExit}
             className="flex-shrink-0 text-gray-500 hover:text-white transition-colors"
           >
             <X size={18} />

@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import {
   CheckCircle,
   XCircle,
@@ -10,6 +9,7 @@ import {
   X
 } from 'lucide-react';
 import { Toast, ToastType } from '../../hooks/useToast';
+import { useAnimatedVisibility } from '../../hooks/useAnimatedVisibility';
 
 interface ToastItemProps {
   toast: Toast;
@@ -68,38 +68,21 @@ const TOAST_CONFIGS: Record<ToastType, {
 };
 
 function ToastItem({ toast, onDismiss }: ToastItemProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+  const { slideInRightClasses, triggerExit } = useAnimatedVisibility({
+    exitDuration: 200,
+    onExit: () => onDismiss?.(toast.id),
+  });
 
   const config = TOAST_CONFIGS[toast.type];
   const IconComponent = config.icon;
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      setIsVisible(true);
-    });
-  }, []);
-
-  const handleDismiss = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      onDismiss?.(toast.id);
-    }, 200);
-  };
-
   return (
     <div
-      className={`
-        relative transition-all duration-300 ease-out
-        ${isVisible && !isExiting
-          ? 'translate-x-0 opacity-100'
-          : 'translate-x-full opacity-0'
-        }
-      `}
+      className={`relative transition-all duration-300 ease-out ${slideInRightClasses}`}
     >
       {/* Neo-brutalist card - flat color, hard shadow, bold border */}
       <div
-        className="relative w-[320px]"
+        className="relative w-[320px] pointer-events-auto"
         style={{
           backgroundColor: config.bgColor,
           border: `2px solid ${config.borderColor}`,
@@ -142,7 +125,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
             <button
               onClick={() => {
                 toast.action?.onClick();
-                handleDismiss();
+                triggerExit();
               }}
               className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-2 py-1 transition-all hover:-translate-y-0.5 active:translate-y-0"
               style={{
@@ -157,7 +140,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
 
           {/* Close button */}
           <button
-            onClick={handleDismiss}
+            onClick={triggerExit}
             className="flex-shrink-0 p-0.5 text-gray-500 hover:text-white transition-colors"
           >
             <X size={14} />

@@ -16,6 +16,9 @@ import {
   createOrientationChangeHandler,
 } from './utils/viewport';
 import ControlsHint from './ControlsHint';
+import LockButton from './LockButton';
+
+const LOCK_KEY = 'koin-controls-locked';
 
 export interface VirtualControllerProps {
   system: string;
@@ -38,7 +41,25 @@ export default function VirtualController({
   const [pressedButtons, setPressedButtons] = useState<Set<string>>(new Set());
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [isFullscreenState, setIsFullscreenState] = useState(false);
+  const [isLocked, setIsLocked] = useState(true); // Default locked
   const { getPosition, savePosition } = useButtonPositions();
+
+  // Load lock state from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(LOCK_KEY);
+    if (stored !== null) {
+      setIsLocked(stored === 'true');
+    }
+  }, []);
+
+  // Toggle lock and persist
+  const toggleLock = useCallback(() => {
+    setIsLocked(prev => {
+      const newValue = !prev;
+      localStorage.setItem(LOCK_KEY, String(newValue));
+      return newValue;
+    });
+  }, []);
 
   // Get layout for current system
   const layout = getLayoutForSystem(system);
@@ -264,6 +285,13 @@ export default function VirtualController({
       className="fixed inset-0 z-30 pointer-events-none"
       style={{ touchAction: 'none' }}
     >
+      {/* Lock/Unlock button */}
+      <LockButton
+        isLocked={isLocked}
+        onToggle={toggleLock}
+        systemColor={systemColor}
+      />
+
       {/* Unified D-pad */}
       <Dpad
         size={dpadSize}
@@ -275,7 +303,7 @@ export default function VirtualController({
         systemColor={systemColor}
         isLandscape={isLandscape}
         customPosition={getPosition('up', isLandscape)} // 'up' acts as dpad position key
-        onPositionChange={(x, y) => savePosition('up', x, y, isLandscape)}
+        onPositionChange={isLocked ? undefined : (x, y) => savePosition('up', x, y, isLandscape)}
       />
 
       {/* Other buttons (A, B, Start, Select, etc.) */}
@@ -292,7 +320,7 @@ export default function VirtualController({
             containerWidth={width}
             containerHeight={height}
             customPosition={customPosition}
-            onPositionChange={(x, y) => savePosition(buttonConfig.type, x, y, isLandscape)}
+            onPositionChange={isLocked ? undefined : (x, y) => savePosition(buttonConfig.type, x, y, isLandscape)}
             isLandscape={isLandscape}
             console={layout.console} // Important: pass the specific console for styling
           />))}

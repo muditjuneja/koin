@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { dispatchKeyboardEvent } from './utils/keyboardEvents';
 import { useDrag } from './hooks/useDrag';
+import { useTouchEvents } from './hooks/useTouchEvents';
 import { ControlMapping } from '../../lib/controls/types';
 
 interface DpadProps {
@@ -20,7 +21,7 @@ interface DpadProps {
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 
-const CENTER_TOUCH_RADIUS = 0.25; // 25% of size - touch area for drag activation
+const CENTER_TOUCH_RADIUS = 0.35; // 35% of size - touch area for drag activation
 
 /**
  * Premium D-pad component with drag repositioning
@@ -246,23 +247,13 @@ const Dpad = React.memo(function Dpad({
         }
     }, [getKeyCode, updateVisuals, drag]);
 
-    useEffect(() => {
-        const dpad = dpadRef.current;
-        if (!dpad) return;
-
-        dpad.addEventListener('touchstart', handleTouchStart, { passive: false });
-        dpad.addEventListener('touchmove', handleTouchMove, { passive: false });
-        dpad.addEventListener('touchend', handleTouchEnd, { passive: false });
-        dpad.addEventListener('touchcancel', handleTouchEnd, { passive: false });
-
-        return () => {
-            dpad.removeEventListener('touchstart', handleTouchStart);
-            dpad.removeEventListener('touchmove', handleTouchMove);
-            dpad.removeEventListener('touchend', handleTouchEnd);
-            dpad.removeEventListener('touchcancel', handleTouchEnd);
-            drag.clearDragTimer();
-        };
-    }, [handleTouchStart, handleTouchMove, handleTouchEnd, drag]);
+    // Use shared touch events hook for event listener management
+    useTouchEvents(dpadRef, {
+        onTouchStart: handleTouchStart,
+        onTouchMove: handleTouchMove,
+        onTouchEnd: handleTouchEnd,
+        onTouchCancel: handleTouchEnd,
+    }, { cleanup: drag.clearDragTimer });
 
     const leftPx = (displayX / 100) * containerWidth - size / 2;
     const topPx = (displayY / 100) * containerHeight - size / 2;
