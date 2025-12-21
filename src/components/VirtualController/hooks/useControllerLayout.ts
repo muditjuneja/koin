@@ -15,20 +15,15 @@ export const useControllerLayout = ({
 
     // Toggle lock and persist - pause game on exit (entering layout mode), resume on lock
     const toggleLock = useCallback(() => {
-        setIsLocked(prev => {
-            const newValue = !prev;
-
-            if (newValue) {
-                // Locking layout - resume game
-                onResume();
-            } else {
-                // Unlocking layout (entering layout mode) - pause game
-                onPause();
-            }
-
-            return newValue;
-        });
-    }, [onPause, onResume]);
+        if (isLocked) {
+            // Unlocking (entering layout mode) -> Pause game
+            onPause();
+        } else {
+            // Locking (exiting layout mode) -> Resume game
+            onResume();
+        }
+        setIsLocked(prev => !prev);
+    }, [isLocked, onPause, onResume]);
 
     return {
         isLocked,

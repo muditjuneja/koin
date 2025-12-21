@@ -65,15 +65,23 @@ export function useMobile(): UseMobileReturn {
         window.addEventListener('resize', handleResize, { passive: true });
         window.addEventListener('orientationchange', handleOrientationChange);
 
+        // Screen Orientation API change event (modern standard, more reliable than orientationchange)
+        const handleScreenOrientation = () => handleResize();
+        if (window.screen?.orientation) {
+            window.screen.orientation.addEventListener('change', handleScreenOrientation);
+        }
+
         // Visual viewport changes (iOS Safari address bar)
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', handleResize);
         }
-
         return () => {
             if (orientationTimeout) clearTimeout(orientationTimeout);
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('orientationchange', handleOrientationChange);
+            if (window.screen?.orientation) {
+                window.screen.orientation.removeEventListener('change', handleScreenOrientation);
+            }
             if (window.visualViewport) {
                 window.visualViewport.removeEventListener('resize', handleResize);
             }

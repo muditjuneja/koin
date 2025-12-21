@@ -339,19 +339,6 @@ export default function VirtualController({
     });
   }, [visibleButtons, containerSize, isLandscape, isFullscreenState, getPosition]); // Dependencies that actually change layout
 
-  // Don't render on desktop
-  if (!isMobile) {
-    return null;
-  }
-
-  // PORTRAIT MODE: Show orientation warning overlay instead of controls
-  if (isPortrait) {
-    if (isDismissed) {
-      return null;
-    }
-    return <OrientationOverlay systemColor={systemColor} onDismiss={dismissOverlay} />;
-  }
-
   // Responsive sizing for D-pad
   const dpadSize = containerSize.width > containerSize.height ? 160 : 180;
   const dpadY = containerSize.width > containerSize.height ? 55 : 62;
@@ -377,6 +364,19 @@ export default function VirtualController({
 
     return handlers;
   }, [isLocked, visibleButtons, savePosition, isLandscape]);
+
+  // Don't render on desktop
+  if (!isMobile) {
+    return null;
+  }
+
+  // PORTRAIT MODE: Show orientation warning overlay instead of controls
+  if (isPortrait) {
+    if (isDismissed) {
+      return null;
+    }
+    return <OrientationOverlay systemColor={systemColor} onDismiss={dismissOverlay} />;
+  }
 
   return (
     <div

@@ -141,7 +141,37 @@ export function getViewportSize(): { width: number; height: number } {
  */
 export function getCurrentOrientation(): 'portrait' | 'landscape' {
   const { width, height } = getViewportSize();
-  return width > height ? 'landscape' : 'portrait';
+  const dimensionBased = width > height ? 'landscape' : 'portrait';
+
+  // Use Screen Orientation API if available (modern standard)
+  if (window.screen?.orientation?.type) {
+    const type = window.screen.orientation.type;
+    const apiBased = type.includes('landscape') ? 'landscape' : 'portrait';
+
+    // HYBRID CHECK: If API and dimensions disagree, trust dimensions
+    // This handles iOS Portrait Upside Down where the browser stays in landscape
+    // but the physical screen shows portrait content
+    if (apiBased !== dimensionBased) {
+      return dimensionBased;
+    }
+    return apiBased;
+  }
+
+  // Fallback for iOS (window.orientation is deprecated but standard on iOS)
+  // 0 and 180 are portrait, 90 and -90 are landscape
+  if (typeof window.orientation !== 'undefined') {
+    const angle = Number(window.orientation);
+    const apiBased = Math.abs(angle) === 90 ? 'landscape' : 'portrait';
+
+    // Same hybrid check
+    if (apiBased !== dimensionBased) {
+      return dimensionBased;
+    }
+    return apiBased;
+  }
+
+  // Fallback to dimensions only
+  return dimensionBased;
 }
 
 /**
