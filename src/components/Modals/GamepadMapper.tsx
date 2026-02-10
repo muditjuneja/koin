@@ -234,7 +234,7 @@ export default function GamepadMapper({
 
             {/* Button mapping grid */}
             {gamepads.length > 0 && (
-                <div className="p-4 space-y-6 max-h-[400px] overflow-y-auto">
+                <div className="p-4 space-y-6">
                     {listeningFor && (
                         <div className="p-4 rounded-lg bg-black/50 border border-retro-primary/50 text-center animate-pulse" style={{ borderColor: `${systemColor}50` }}>
                             <p className="text-sm text-white mb-1">

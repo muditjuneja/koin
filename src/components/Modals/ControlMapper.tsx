@@ -121,7 +121,7 @@ export default function ControlMapper({
             }
         >
             {/* Controls Grid */}
-            <div className="p-4 space-y-6 max-h-[400px] overflow-y-auto">
+            <div className="p-4 space-y-6">
                 {controlGroups.map((group) => (
                     <div key={group.label}>
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">

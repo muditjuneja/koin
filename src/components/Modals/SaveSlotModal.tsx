@@ -99,7 +99,7 @@ export default function SaveSlotModal({
         >
 
             {/* Slots List */}
-            <div className="p-4 space-y-2 max-h-[400px] overflow-y-auto">
+            <div className="p-4 space-y-2">
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                         <Loader2 className="w-8 h-8 animate-spin mb-3" />

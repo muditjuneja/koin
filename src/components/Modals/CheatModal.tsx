@@ -39,7 +39,7 @@ export default function CheatModal({
                 </p>
             }
         >
-            <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+            <div className="p-4 space-y-4">
                 {/* Manual Entry Form */}
                 {onAddManualCheat && (
                     <div className="p-3 bg-white/5 rounded-lg border border-white/10 space-y-3">
