@@ -85,16 +85,14 @@ export const SettingsControls = memo(function SettingsControls({
                 <ControlButton onClick={onFullscreen} icon={Maximize} label={t.controls.full} disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
             )}
 
-            {/* Controls/Keys button - Hide on mobile */}
-            {!isMobile && (
-                <ControlButton onClick={onControls} icon={Gamepad2} label={t.controls.keys} disabled={disabled} className="hidden sm:flex" systemColor={systemColor} />
-            )}
+            {/* Controls/Keys button */}
+            <ControlButton onClick={onControls} icon={Gamepad2} label={t.controls.keys} disabled={disabled} systemColor={systemColor} />
 
             {/* Gamepad indicator - shows connected controllers OR hint to press button */}
             {gamepadCount > 0 ? (
                 <button
                     onClick={onGamepadSettings}
-                    className="relative group flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/10 flex-shrink-0 hidden sm:flex"
+                    className="relative group flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/10 flex-shrink-0"
                     title={gamepadConnectedTitle}
                 >
                     <div className="relative">
@@ -133,7 +131,7 @@ export const SettingsControls = memo(function SettingsControls({
                 </button>
             )}
 
-            <div className="relative group hidden sm:block">
+            <div className="relative group">
                 <ControlButton
                     onClick={hardcoreRestrictions?.canUseCheats === false ? undefined : onCheats}
                     icon={Code}
@@ -162,7 +160,6 @@ export const SettingsControls = memo(function SettingsControls({
                     label={t.settings.title}
                     disabled={disabled}
                     systemColor={systemColor}
-                    className="hidden sm:flex"
                 />
             )}
             <div className="w-px h-8 bg-white/10 mx-2 hidden sm:block" />

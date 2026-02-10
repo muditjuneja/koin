@@ -60,11 +60,11 @@ export default function ControlsHint({ isVisible, systemColor = '#00FF41' }: Con
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-hidden"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
             onClick={handleDismiss}
         >
             <div
-                className="w-full max-w-[350px] bg-zinc-950/90 border border-white/10 rounded-[32px] overflow-hidden shadow-2xl pointer-events-auto max-h-[96vh] flex flex-col"
+                className="w-full max-w-[350px] bg-zinc-950/90 border border-white/10 rounded-[32px] shadow-2xl pointer-events-auto max-h-[96vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -75,9 +75,9 @@ export default function ControlsHint({ isVisible, systemColor = '#00FF41' }: Con
                 </div>
 
                 {/* Grid - Scrollable area (as fallback) */}
-                <div className="grid grid-cols-2 gap-px bg-white/5 border-y border-white/5 overflow-y-auto scrollbar-hide">
+                <div className="grid grid-cols-2 gap-px bg-white/5 border-y border-white/5 overflow-y-auto scrollbar-hide min-h-0">
                     {items.map((item, i) => (
-                        <div key={i} className="p-5 flex flex-col items-center text-center bg-zinc-950/40">
+                        <div key={i} className="p-4 flex flex-col items-center text-center bg-zinc-950/40">
                             <div
                                 className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 transition-transform active:scale-95"
                                 style={{
