@@ -145,6 +145,12 @@ export function buildRetroArchConfig(config: ControlConfig): Record<string, unkn
         });
     }
 
+    // Explicitly assign gamepads to player slots (required when autodetect is off)
+    raConfig.input_player1_joypad_index = 0;
+    raConfig.input_player2_joypad_index = 1;
+    raConfig.input_player3_joypad_index = 2;
+    raConfig.input_player4_joypad_index = 3;
+
     // Enable analog stick → D-pad for all players
     raConfig.input_player1_analog_dpad_mode = 1;
     raConfig.input_player2_analog_dpad_mode = 1;

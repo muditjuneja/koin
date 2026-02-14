@@ -104,7 +104,6 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
     const [gamepads, setGamepads] = useState<GamepadInfo[]>([]);
     const gamepadsRef = useRef<GamepadInfo[]>([]); // Current state ref for stale-closure-safe comparison
     const rafRef = useRef<number | null>(null);
-    const lastStateRef = useRef<string>(''); // Kept for logic compatibility or debug
     const prevCountRef = useRef<number>(0);
 
     // Store callbacks in refs to avoid re-running effect when they change
@@ -212,7 +211,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
             const prevCount = prevCountRef.current;
             prevCountRef.current = current.length;
             gamepadsRef.current = current;
-            lastStateRef.current = current.map(g => `${g.index}:${g.id}`).join('|');
+
             setGamepads(current);
 
             // Trigger callback if provided
@@ -229,7 +228,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
             const prevCount = prevCountRef.current;
             prevCountRef.current = current.length;
             gamepadsRef.current = current;
-            lastStateRef.current = current.map(g => `${g.index}:${g.id}`).join('|');
+
             setGamepads(current);
 
             // Trigger callback if provided
@@ -251,7 +250,6 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
             prevCountRef.current = initial.length;
             gamepadsRef.current = initial;
             setGamepads(initial);
-            lastStateRef.current = initial.map(g => `${g.index}:${g.id}`).join('|');
         } else {
             prevCountRef.current = 0;
         }
