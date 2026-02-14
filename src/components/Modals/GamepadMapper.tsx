@@ -50,6 +50,7 @@ export default function GamepadMapper({
     const rafRef = useRef<number | null>(null);
 
     // Load bindings for all connected players when modal opens
+    // Only depends on isOpen — gamepads prop changes should NOT reset in-progress bindings
     useEffect(() => {
         if (isOpen) {
             const loadedBindings: Record<number, GamepadMapping> = {};
@@ -57,11 +58,14 @@ export default function GamepadMapper({
                 loadedBindings[i] = loadGamepadMapping(i as PlayerIndex);
             }
             setBindings(loadedBindings);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
-            // Select first connected gamepad's player
-            if (gamepads.length > 0) {
-                setSelectedPlayer(gamepads[0].index + 1);
-            }
+    // Select first connected gamepad's player when modal opens or gamepads change
+    useEffect(() => {
+        if (isOpen && gamepads.length > 0) {
+            setSelectedPlayer(gamepads[0].index + 1);
         }
     }, [isOpen, gamepads]);
 

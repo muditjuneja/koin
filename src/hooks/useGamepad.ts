@@ -102,6 +102,7 @@ export interface UseGamepadReturn {
 export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
     const { onConnect, onDisconnect } = options || {};
     const [gamepads, setGamepads] = useState<GamepadInfo[]>([]);
+    const gamepadsRef = useRef<GamepadInfo[]>([]); // Current state ref for stale-closure-safe comparison
     const rafRef = useRef<number | null>(null);
     const lastStateRef = useRef<string>(''); // Kept for logic compatibility or debug
     const prevCountRef = useRef<number>(0);
@@ -172,9 +173,10 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
 
             if (!hasChanged) {
                 // Deep check only if counts match
-                // We can just check connections and IDs without creating full signature strings
+                // Use ref instead of state to avoid stale closure
+                const prev = gamepadsRef.current;
                 for (let i = 0; i < current.length; i++) {
-                    const saved = gamepads[i];
+                    const saved = prev[i];
                     if (!saved || saved.id !== current[i].id || saved.connected !== current[i].connected) {
                         hasChanged = true;
                         break;
@@ -195,8 +197,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
                 }
 
                 prevCountRef.current = currentCount;
-                // lastStateRef no longer needed for primary comparison but we keep it if we want to debug
-                // lastStateRef.current = stateSignature;
+                gamepadsRef.current = current;
                 setGamepads(current);
             }
 
@@ -210,6 +211,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
             const current = getGamepads();
             const prevCount = prevCountRef.current;
             prevCountRef.current = current.length;
+            gamepadsRef.current = current;
             lastStateRef.current = current.map(g => `${g.index}:${g.id}`).join('|');
             setGamepads(current);
 
@@ -226,6 +228,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
             const current = getGamepads();
             const prevCount = prevCountRef.current;
             prevCountRef.current = current.length;
+            gamepadsRef.current = current;
             lastStateRef.current = current.map(g => `${g.index}:${g.id}`).join('|');
             setGamepads(current);
 
@@ -246,6 +249,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
         if (initial.length > 0) {
             console.log('[useGamepad] Initial gamepads found:', initial.map(g => g.name).join(', '));
             prevCountRef.current = initial.length;
+            gamepadsRef.current = initial;
             setGamepads(initial);
             lastStateRef.current = initial.map(g => `${g.index}:${g.id}`).join('|');
         } else {
