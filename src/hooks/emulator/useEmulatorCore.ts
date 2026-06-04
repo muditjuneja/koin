@@ -251,8 +251,8 @@ export function useEmulatorCore({
                     rewind_enable: true, // Default, can be overridden by optimizedConfig
                     rewind_granularity: 1,
                     rewind_buffer_size: 100,
-                    fast_forward_ratio: 2.0,
-                    fast_forward_frameskip: 0,
+                    fastforward_ratio: 2.0,
+                    fastforward_frameskip: 0,
                     audio_volume: volumeDb.toFixed(2),
                     input_volume_up: 'add',
                     input_volume_down: 'subtract',
