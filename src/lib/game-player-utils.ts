@@ -1,5 +1,48 @@
 import { RefObject } from 'react';
 
+/**
+ * Turn a raw ROM-loading error into an actionable message.
+ *
+ * The browser's `fetch()` throws a generic `TypeError` (e.g. "Failed to
+ * fetch", "NetworkError when attempting to fetch resource.", or Safari's
+ * "Load failed") whenever a cross-origin ROM request is blocked by CORS,
+ * blocked as mixed content (https page requesting an http:// ROM), or
+ * simply can't reach the host. That message alone gives users nothing to
+ * act on (see https://github.com/muditjuneja/koin/issues/4), so we detect
+ * this class of failure and explain the likely cause instead.
+ */
+export function describeRomLoadError(err: unknown, romUrl?: string): string {
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const isGenericNetworkError =
+        err instanceof TypeError &&
+        /failed to fetch|networkerror|load failed/i.test(rawMessage);
+
+    if (!isGenericNetworkError) return rawMessage;
+
+    let hint =
+        'Could not download the ROM. This is almost always caused by the ROM host ' +
+        'either not being reachable or not allowing cross-origin requests (CORS).';
+
+    if (romUrl) {
+        try {
+            const url = new URL(romUrl, typeof window !== 'undefined' ? window.location.href : undefined);
+            if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.protocol === 'http:') {
+                hint =
+                    'Could not download the ROM: this page is served over HTTPS but the ROM URL uses ' +
+                    'plain HTTP. Browsers block this "mixed content" request. Serve the ROM over HTTPS instead.';
+            } else if (typeof window !== 'undefined' && url.origin !== window.location.origin) {
+                hint =
+                    `Could not download the ROM from ${url.origin}. Make sure that server responds with ` +
+                    "an 'Access-Control-Allow-Origin' header allowing this site, or host the ROM on the same domain.";
+            }
+        } catch {
+            // Not a parseable absolute/relative URL — keep the generic hint above.
+        }
+    }
+
+    return `${hint} (${rawMessage})`;
+}
+
 export function suppressEmulatorWarnings() {
     // Suppress harmless warnings from Emscripten/RetroArch
     const originalWarn = console.warn;

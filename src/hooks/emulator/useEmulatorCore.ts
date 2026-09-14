@@ -10,6 +10,7 @@ import {
 import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig } from './types';
 import { getCachedRom, fetchAndCacheRom } from '../../lib/rom-cache';
 import { getSystem } from '../../lib/systems';
+import { describeRomLoadError } from '../../lib/game-player-utils';
 
 
 interface UseEmulatorCoreProps {
@@ -189,7 +190,10 @@ export function useEmulatorCore({
                         };
                     }
                 } catch (err) {
-                    console.error('[Nostalgist] Cache/Fetch error, falling back to direct URL:', err);
+                    console.error(
+                        '[Nostalgist] Cache/Fetch error, falling back to direct URL:',
+                        describeRomLoadError(err, romUrl)
+                    );
                     // Fallback to URL is implicit (romOption = romUrl)
                 }
             } else if (romFileName) {
@@ -309,7 +313,9 @@ export function useEmulatorCore({
 
             setStatus('ready');
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to prepare emulator';
+            const errorMessage = err instanceof Error
+                ? describeRomLoadError(err, romUrl)
+                : 'Failed to prepare emulator';
             console.error('[Nostalgist] Prepare error:', err);
             setError(errorMessage);
             setStatus('error');

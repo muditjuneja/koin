@@ -23,6 +23,7 @@ export function useGameSession(props: UseGameSessionProps) {
         biosUrl,
         initialSaveState,
         retroAchievementsConfig,
+        raUser,
         onSessionStart,
         onSessionEnd,
         onReady,
@@ -80,6 +81,23 @@ export function useGameSession(props: UseGameSessionProps) {
     const savedStateForRestart = useRef<Uint8Array | null>(null);
     const [softRestartPending, setSoftRestartPending] = useState(false);
 
+    // RetroAchievements: `raUser` (login/session state used to drive the RA sidebar UI)
+    // and `retroAchievementsConfig` (what actually gets wired into the RetroArch core's
+    // cheevos_* options) are two separate props. Consumers commonly set up `raUser` +
+    // `onRALogin` to show the sidebar/unlocks list, but never realize they also need to
+    // pass `retroAchievementsConfig` for achievements to actually be tracked/unlocked by
+    // the core — resulting in a fully working RA login UI where nothing ever unlocks
+    // (see https://github.com/muditjuneja/koin/issues/2). Fall back to deriving it from
+    // `raUser` so logging in is enough by default; an explicit `retroAchievementsConfig`
+    // still always wins (e.g. to control hardcore mode).
+    const resolvedRetroAchievementsConfig = useMemo(() => {
+        if (retroAchievementsConfig) return retroAchievementsConfig;
+        if (raUser?.username && raUser?.connectToken) {
+            return { username: raUser.username, token: raUser.connectToken };
+        }
+        return undefined;
+    }, [retroAchievementsConfig, raUser?.username, raUser?.connectToken]);
+
     // Emulator state
     const nostalgist = useNostalgist({
         system,
@@ -92,7 +110,7 @@ export function useGameSession(props: UseGameSessionProps) {
         getCanvasElement: () => canvasRef.current,
         keyboardControls: controls,
         gamepadBindings: gamepadBindings.length > 0 ? gamepadBindings : undefined,
-        retroAchievements: retroAchievementsConfig,
+        retroAchievements: resolvedRetroAchievementsConfig,
         shader: props.shader,
         onReady: () => {
             console.log('[GamePlayer] Emulator started');
@@ -210,7 +228,7 @@ export function useGameSession(props: UseGameSessionProps) {
 
     // Hardcore Restrictions
     const hardcoreRestrictions = useMemo(() => {
-        const isHardcore = !!retroAchievementsConfig?.hardcore;
+        const isHardcore = !!resolvedRetroAchievementsConfig?.hardcore;
         return {
             isHardcore,
             canUseSaveStates: !isHardcore,
@@ -218,7 +236,7 @@ export function useGameSession(props: UseGameSessionProps) {
             canUseCheats: !isHardcore,
             canUseSlowMotion: !isHardcore,
         };
-    }, [retroAchievementsConfig?.hardcore, nostalgist.rewindEnabled]);
+    }, [resolvedRetroAchievementsConfig?.hardcore, nostalgist.rewindEnabled]);
 
     return {
         nostalgist,
