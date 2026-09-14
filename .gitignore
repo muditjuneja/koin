@@ -29,3 +29,6 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+
+# Claude Code local tooling (agent worktrees, etc.)
+.claude/
