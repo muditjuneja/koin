@@ -1,0 +1,30 @@
+diff --git a/node_modules/nostalgist/dist/nostalgist.js b/node_modules/nostalgist/dist/nostalgist.js
+index 3821fe5..d5f7c05 100644
+--- a/node_modules/nostalgist/dist/nostalgist.js
++++ b/node_modules/nostalgist/dist/nostalgist.js
+@@ -2610,7 +2610,9 @@ var Emulator = class {
+ 	}
+ 	postRun() {
+ 		this.resize(this.canvasInitialSize);
+-		for (const gamepad of navigator.getGamepads?.() ?? []) if (gamepad) globalThis.dispatchEvent(new GamepadEvent("gamepadconnected", { gamepad }));
++		// Synthetic gamepadconnected dispatch removed via patch — prevents RetroArch
++		// autoconfig from overriding custom button mappings set via retroarchConfig.
++		// The joypad driver still polls navigator.getGamepads() directly each frame.
+ 		this.updateKeyboardEventHandlers();
+ 	}
+ 	recordGlobalDOMEventListeners() {
+diff --git a/node_modules/nostalgist/dist/nostalgist.umd.js b/node_modules/nostalgist/dist/nostalgist.umd.js
+index 032ee30..e77eda9 100644
+--- a/node_modules/nostalgist/dist/nostalgist.umd.js
++++ b/node_modules/nostalgist/dist/nostalgist.umd.js
+@@ -2613,7 +2613,9 @@
+ 		}
+ 		postRun() {
+ 			this.resize(this.canvasInitialSize);
+-			for (const gamepad of navigator.getGamepads?.() ?? []) if (gamepad) globalThis.dispatchEvent(new GamepadEvent("gamepadconnected", { gamepad }));
++			// Synthetic gamepadconnected dispatch removed via patch — prevents RetroArch
++			// autoconfig from overriding custom button mappings set via retroarchConfig.
++			// The joypad driver still polls navigator.getGamepads() directly each frame.
+ 			this.updateKeyboardEventHandlers();
+ 		}
+ 		recordGlobalDOMEventListeners() {
