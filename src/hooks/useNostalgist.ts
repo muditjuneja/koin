@@ -10,16 +10,16 @@ import { useEmulatorAudio } from './emulator/useEmulatorAudio';
 import { useEmulatorInput } from './emulator/useEmulatorInput';
 import { useEmulatorSaves } from './emulator/useEmulatorSaves';
 import { useEmulatorCheats } from './emulator/useEmulatorCheats';
-import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig } from './emulator/types';
+import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig, CustomCoreSource } from './emulator/types';
 
 // Re-export types
-export type { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig };
+export type { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig, CustomCoreSource };
 
 interface UseNostalgistOptions {
     system: string;
     romUrl: string;
 
-    core?: string; // Core override
+    core?: string | CustomCoreSource; // Core override — a known core name, or a self-hosted { name, js, wasm } source
     biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' }; // Custom BIOS URL
     initialState?: Blob | Uint8Array; // Initial save state
     getCanvasElement?: () => HTMLCanvasElement | null; // Function to get canvas element (must be in DOM before prepare)

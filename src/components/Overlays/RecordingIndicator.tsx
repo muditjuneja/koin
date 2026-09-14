@@ -11,7 +11,6 @@ interface RecordingIndicatorProps {
     onPause?: () => void;
     onResume?: () => void;
     onStop?: () => void;
-    systemColor?: string;
 }
 
 /**
@@ -27,7 +26,6 @@ const RecordingIndicator = memo(function RecordingIndicator({
     onPause,
     onResume,
     onStop,
-    systemColor = '#FF3333',
 }: RecordingIndicatorProps) {
     const t = useKoinTranslation();
     const [isHovered, setIsHovered] = useState(false);

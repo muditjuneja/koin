@@ -11,7 +11,6 @@ interface PlayerHUDProps {
     coreName?: string;
     // Input Display
     showInputDisplay: boolean;
-    system: string;
     // Recording
     isRecording: boolean;
     isRecordingPaused: boolean;
@@ -32,7 +31,6 @@ const PlayerHUD = memo(function PlayerHUD({
     showFPS,
     coreName = 'Unknown',
     showInputDisplay,
-    system,
     isRecording,
     isRecordingPaused,
     recordingDuration,
@@ -41,7 +39,9 @@ const PlayerHUD = memo(function PlayerHUD({
     onStopRecording,
 }: PlayerHUDProps) {
     const t = useKoinTranslation();
-    const [fps, setFps] = useState(60);
+    // FPS is currently a static placeholder — no live measurement is wired up yet
+    // (see the comment below), so there's no setter to expose here.
+    const [fps] = useState(60);
     const [isHoveredRecording, setIsHoveredRecording] = useState(false);
 
     // FPS calculation effect would be here (simplified for now)

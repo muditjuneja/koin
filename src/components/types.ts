@@ -1,4 +1,4 @@
-import { SpeedMultiplier } from '../hooks/useNostalgist';
+import { SpeedMultiplier, CustomCoreSource } from '../hooks/useNostalgist';
 import { ShaderPresetId } from '../lib/shader-presets';
 // Re-export from unified controls module for backwards compatibility
 import { KeyboardMapping, DEFAULT_KEYBOARD } from '../lib/controls';
@@ -30,7 +30,9 @@ export interface GamePlayerProps {
     romFileName?: string;
     system: string;
     title: string;
-    core?: string;
+    // A known core name (e.g. 'snes9x'), or a self-hosted core: { name, js, wasm }.
+    // See CustomCoreSource for bringing your own libretro core build.
+    core?: string | CustomCoreSource;
     biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' };
 
     // Manual BIOS Selection

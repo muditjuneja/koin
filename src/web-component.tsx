@@ -43,7 +43,7 @@ class RetroGamePlayerElement extends HTMLElement {
         this.render();
     }
 
-    attributeChangedCallback(name: string, oldValue: string, newValue: string) {
+    attributeChangedCallback(_name: string, oldValue: string, newValue: string) {
         if (oldValue === newValue) return;
         this.render();
     }
@@ -61,6 +61,14 @@ class RetroGamePlayerElement extends HTMLElement {
 
     set retroAchievementsConfig(config: GamePlayerProps['retroAchievementsConfig']) {
         this._props.retroAchievementsConfig = config;
+        this.render();
+    }
+
+    // `core` attribute only carries a plain core name string (HTML attributes can't hold
+    // objects). To use a custom { name, js, wasm } core source, set the `core` property
+    // in JS instead: `el.core = { name, js, wasm }`.
+    set core(core: GamePlayerProps['core']) {
+        this._props.core = core;
         this.render();
     }
 

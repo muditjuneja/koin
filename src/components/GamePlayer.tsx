@@ -37,14 +37,20 @@ const GamePlayerInner = memo(function GamePlayerInner(
     // -- Persistence Hook --
     const { settings, updateSettings, isLoaded: settingsLoaded } = usePlayerPersistence();
 
+    // Stable string label for the active core, whether `core` is a plain name or a
+    // CustomCoreSource object. Using this (rather than props.core directly) as a dep/value
+    // avoids re-firing telemetry or busting memoization when a consumer passes a fresh
+    // inline core object (e.g. `core={{ name, js, wasm }}`) on every render.
+    const coreLabel = typeof props.core === 'string' ? props.core : props.core?.name;
+
     // -- Telemetry --
     useEffect(() => {
         sendTelemetry('game_start', {
             system: props.system,
-            core: props.core,
+            core: coreLabel,
             game: props.title || 'unknown'
         });
-    }, [props.system, props.core, props.title]);
+    }, [props.system, coreLabel, props.title]);
 
     // -- Internal State --
     const [biosModalOpen, setBiosModalOpen] = useState(false);
@@ -412,7 +418,7 @@ const GamePlayerInner = memo(function GamePlayerInner(
                         {settings.showPerformanceOverlay && (status === 'running' || status === 'paused') && (
                             <PerformanceOverlay
                                 isVisible={true}
-                                coreName={props.core}
+                                coreName={coreLabel}
                                 systemColor={systemColor}
                             />
                         )}
