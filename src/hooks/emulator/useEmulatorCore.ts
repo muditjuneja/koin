@@ -324,7 +324,14 @@ export function useEmulatorCore({
             console.error('[Nostalgist] Prepare error:', err);
             setError(errorMessage);
             setStatus('error');
-            onError?.(err instanceof Error ? err : new Error(errorMessage));
+            // Forward the friendlier message to onError too — not just the on-screen
+            // overlay — since consumers commonly surface err.message in their own
+            // toasts/logging. Only re-wrap when the message actually changed, so the
+            // original Error identity/stack is preserved otherwise.
+            const reportedError = err instanceof Error
+                ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
+                : new Error(errorMessage);
+            onError?.(reportedError);
         }
     }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, initialVolume, onError, retroAchievements]);
 
@@ -365,15 +372,20 @@ export function useEmulatorCore({
 
             onReady?.();
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to start emulator';
+            const errorMessage = err instanceof Error
+                ? describeRomLoadError(err, romUrl)
+                : 'Failed to start emulator';
             console.error('[Nostalgist] Start error:', err);
             setError(errorMessage);
             setStatus('error');
-            onError?.(err instanceof Error ? err : new Error(errorMessage));
+            const reportedError = err instanceof Error
+                ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
+                : new Error(errorMessage);
+            onError?.(reportedError);
         } finally {
             isStartingRef.current = false;
         }
-    }, [prepare, onReady, onError]);
+    }, [prepare, onReady, onError, romUrl]);
 
     // Stop the emulator
     const stop = useCallback(() => {

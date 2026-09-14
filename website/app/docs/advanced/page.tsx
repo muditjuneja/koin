@@ -326,13 +326,17 @@ export default function AdvancedPage() {
                 <CodeBlock
                     filename="Bring your own core"
                     language="tsx"
-                    code={`<GamePlayer
+                    code={`// Memoize the core object so it keeps the same reference across renders —
+// an inline object literal would otherwise change identity on every render.
+const myCore = useMemo(() => ({
+  name: 'my_custom_core',
+  js: 'https://my-cdn.example.com/cores/my_custom_core_libretro.js',
+  wasm: 'https://my-cdn.example.com/cores/my_custom_core_libretro.wasm',
+}), []);
+
+<GamePlayer
   system="SNES"
-  core={{
-    name: 'my_custom_core',
-    js: 'https://my-cdn.example.com/cores/my_custom_core_libretro.js',
-    wasm: 'https://my-cdn.example.com/cores/my_custom_core_libretro.wasm',
-  }}
+  core={myCore}
   romUrl={romUrl}
   // ...
 />`}
