@@ -238,7 +238,7 @@ export default function GameDashboard() {
                 <div className="flex items-center gap-3">
                     {/* GitHub Link */}
                     <a
-                        href="https://github.com/user/koin"
+                        href="https://github.com/muditjuneja/koin"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-8 h-8 flex items-center justify-center border-2 border-black bg-white shadow-[3px_3px_0px_0px_#000] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#000] transition-all"
