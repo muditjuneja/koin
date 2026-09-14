@@ -412,7 +412,7 @@ const GamePlayerInner = memo(function GamePlayerInner(
                         {settings.showPerformanceOverlay && (status === 'running' || status === 'paused') && (
                             <PerformanceOverlay
                                 isVisible={true}
-                                coreName={props.core}
+                                coreName={typeof props.core === 'string' ? props.core : props.core?.name}
                                 systemColor={systemColor}
                             />
                         )}

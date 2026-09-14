@@ -306,6 +306,51 @@ export default function AdvancedPage() {
                 </div>
             </section>
 
+            {/* Custom Cores */}
+            <section>
+                <h2 className="text-2xl font-display font-black uppercase mb-4 border-b-4 border-retro-green pb-2 inline-block">
+                    Custom Cores
+                </h2>
+
+                <p className="font-mono text-sm mb-4">
+                    Every system in koin already maps to a sensible default core (see the{" "}
+                    <a href="/docs/systems" className="underline">System Compatibility</a> page), but
+                    you&apos;re not limited to those. The <code>core</code> prop accepts either:
+                </p>
+
+                <ul className="list-disc list-inside font-mono text-sm mb-4 space-y-1">
+                    <li>a plain core name (string) to override which built-in core is used, or</li>
+                    <li>a fully custom, self-hosted libretro core — bring your own WASM build.</li>
+                </ul>
+
+                <CodeBlock
+                    filename="Bring your own core"
+                    language="tsx"
+                    code={`<GamePlayer
+  system="SNES"
+  core={{
+    name: 'my_custom_core',
+    js: 'https://my-cdn.example.com/cores/my_custom_core_libretro.js',
+    wasm: 'https://my-cdn.example.com/cores/my_custom_core_libretro.wasm',
+  }}
+  romUrl={romUrl}
+  // ...
+/>`}
+                />
+
+                <div className="mt-4 border-4 border-yellow-500 p-4 bg-yellow-500/10">
+                    <p className="font-mono text-sm">
+                        <strong>Note:</strong> koin doesn&apos;t compile cores for you — the <code>js</code>
+                        /<code>wasm</code> pair must be an Emscripten build of a libretro core (the same
+                        format libretro&apos;s buildbot and projects like{" "}
+                        <a href="https://github.com/linuxserver/libretro-cores" className="underline">
+                            linuxserver/libretro-cores
+                        </a>{" "}
+                        produce). Serve both files with CORS enabled so the browser can fetch them.
+                    </p>
+                </div>
+            </section>
+
             {/* Performance Tips */}
             <section>
                 <h2 className="text-2xl font-display font-black uppercase mb-4 border-b-4 border-black pb-2 inline-block">

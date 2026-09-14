@@ -7,7 +7,7 @@ import {
     GamepadMapping,
     buildRetroArchConfig
 } from '../../lib/controls';
-import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig } from './types';
+import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig, CustomCoreSource } from './types';
 import { getCachedRom, fetchAndCacheRom } from '../../lib/rom-cache';
 import { getSystem } from '../../lib/systems';
 import { describeRomLoadError } from '../../lib/game-player-utils';
@@ -17,7 +17,7 @@ interface UseEmulatorCoreProps {
     system: string;
     romUrl: string;
     romId?: string;
-    core?: string;
+    core?: string | CustomCoreSource;
     biosUrl?: string | { url: string; name: string; location?: 'system' | 'rom_folder' };
     initialState?: Blob | Uint8Array;
     getCanvasElement?: () => HTMLCanvasElement | null;
@@ -167,6 +167,8 @@ export function useEmulatorCore({
             setStatus('loading');
             setError(null);
 
+            // `coreOverride` may be a plain core name (must be one Nostalgist ships out
+            // of the box), or a fully custom { name, js, wasm } source — see CustomCoreSource.
             const core = coreOverride || getCore(system);
 
             let romOption: any = romUrl;
@@ -230,9 +232,9 @@ export function useEmulatorCore({
             // Resolve core URL if needed
             // Resolve core configuration
             const sysConfig = getSystem(system);
-            let coreOption: string | { name: string; js: string; wasm: string } = core;
+            let coreOption: string | CustomCoreSource = core;
 
-            if (sysConfig?.coreSource === 'linuxserver') {
+            if (typeof core === 'string' && sysConfig?.coreSource === 'linuxserver') {
                 // linuxserver/libretro-cores via jsDelivr - verified working (2025-12-22)
                 const baseUrl = `https://cdn.jsdelivr.net/gh/linuxserver/libretro-cores@master/data/${core}_libretro`;
                 // Nostalgist expects { name, js, wasm } format for custom core URLs
@@ -242,6 +244,9 @@ export function useEmulatorCore({
                     wasm: `${baseUrl}.wasm`,
                 };
             }
+            // Otherwise: `core` is either a plain core name Nostalgist resolves itself,
+            // or an explicit { name, js, wasm } CustomCoreSource passed straight through
+            // (e.g. via the `core` prop) — either way it's already the right shape.
 
             const prepareOptions: any = {
                 core: coreOption,
