@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
-export interface UseInputCaptureOptions<T> {
+export interface UseInputCaptureOptions {
     /** Whether the modal is currently open */
     isOpen: boolean;
     /** Callback to close the modal (called on Escape when not listening) */
@@ -30,7 +30,7 @@ export interface UseInputCaptureReturn<T> {
 export function useInputCapture<T>({
     isOpen,
     onClose,
-}: UseInputCaptureOptions<T>): UseInputCaptureReturn<T> {
+}: UseInputCaptureOptions): UseInputCaptureReturn<T> {
     const [listeningFor, setListeningFor] = useState<T | null>(null);
 
     const startListening = useCallback((target: T) => {

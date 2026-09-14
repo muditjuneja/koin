@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Trophy, ExternalLink, CheckCircle } from 'lucide-react';
 import { RAGameExtended, RAAchievement, getAchievementBadgeUrl } from '../../lib/retroachievements';
 import { useKoinTranslation } from '../../hooks/useKoinTranslation';
