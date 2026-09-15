@@ -2,13 +2,13 @@
 
 ## Browser Retro Game Emulation for React
 
-> **24 systems. Cloud saves. Multi-language. Zero backend required.**
+> **25 systems. Bring your own core. Cloud saves. RetroAchievements. Zero backend required.**
 
 [![Try the Demo](https://img.shields.io/badge/PLAY-TRY%20THE%20DEMO-FFD600?style=for-the-badge&logoColor=black&labelColor=black)](https://koin.js.org/)
 [![NPM Version](https://img.shields.io/npm/v/koin.js?style=for-the-badge&color=white&labelColor=black)](https://www.npmjs.com/package/koin.js)
 [![License](https://img.shields.io/npm/l/koin.js?style=for-the-badge&color=white&labelColor=black)](LICENSE)
 
-The drop-in React component for browser-based retro game emulation. Built on [Nostalgist.js](https://github.com/arianrhodsandlot/nostalgist), adding production-ready features like cloud saves, touch controls, gameplay recording, and RetroAchievements.
+The drop-in React component for browser-based retro game emulation. Built on [Nostalgist.js](https://github.com/arianrhodsandlot/nostalgist), adding production-ready features like cloud saves, custom cores, touch controls, gameplay recording, and RetroAchievements.
 
 ![koin.js](./koin-player.png)
 
@@ -17,14 +17,16 @@ The drop-in React component for browser-based retro game emulation. Built on [No
 ### 🎮 Core Emulation
 - **25 Consoles** — NES to PlayStation, Game Boy to Saturn
 - **Automatic Core Selection** — Best emulator core per system
+- **Bring Your Own Core** — Point at a self-hosted/self-compiled libretro core instead of the built-in ones
 - **BIOS Management** — Multi-file BIOS support with UI selection
-- **Performance Optimized** — SharedArrayBuffer for maximum speed
+- **Performance Optimized** — SharedArrayBuffer threading + Run-Ahead frame prediction for near-zero input lag on 8/16-bit systems
 
 ### ☁️ Save System
 - **Slot-Based Saves** — Multiple save states with screenshots
 - **Auto-Save** — Periodic background saves (configurable interval)
 - **Emergency Saves** — Automatic save on tab hide/close
 - **Cloud-Ready API** — Bring your own backend with async handlers
+- **Tier-Aware Slots** — Gate save slot counts by user plan (`maxSlots`, `currentTier`, `onUpgrade`) for freemium/paid products
 
 ### 🎨 Display & Effects
 - **10 CRT Shaders** — Lottes, Geom, Easymode, Hyllian, zFast, and more
@@ -33,15 +35,16 @@ The drop-in React component for browser-based retro game emulation. Built on [No
 - **Screenshot Capture** — PNG snapshots with hotkey support
 
 ### 🕹️ Controls
-- **Keyboard Remapping** — Per-console custom key bindings
+- **Keyboard & Gamepad Remapping** — Per-console custom bindings for both, with a visual mapper UI
 - **Gamepad Support** — Auto-detect Xbox, PlayStation, Nintendo controllers
-- **Touch Controls** — GPU-accelerated virtual D-pad and buttons for mobile
+- **Touch Controls** — GPU-accelerated virtual D-pad and buttons, with turbo/hold buttons, haptics, and a drag-to-reposition + lock layout for mobile
 - **Control Persistence** — Saves user preferences across sessions
 
 ### ⏪ Special Features
 - **Rewind** — Time-travel gameplay (auto-enabled for 8/16-bit)
 - **Speed Control** — 0.25x to 4x with hotkey toggle
 - **Fast-Forward** — Turbo mode for grinding
+- **Cheat Codes** — Built-in cheat database plus manual code entry, toggled live in-game
 
 ### 📹 Recording & Overlays
 - **Gameplay Recording** — VP9/VP8 WebM capture at 30fps
@@ -161,26 +164,43 @@ import { en } from 'koin.js';
 ></retro-game-player>
 ```
 
+## Custom Cores
+
+Not limited to the built-in system → core mapping. Pass a self-hosted, Emscripten-built libretro core instead of a core name:
+
+```tsx
+<GamePlayer
+  system="SNES"
+  core={{
+    name: 'my_custom_core',
+    js: 'https://my-cdn.example.com/cores/my_custom_core_libretro.js',
+    wasm: 'https://my-cdn.example.com/cores/my_custom_core_libretro.wasm',
+  }}
+  romUrl={romUrl}
+  // ...
+/>
+```
+
 ## Supported Systems
 
 | System | Key | Core | Source |
 |--------|-----|------|--------|
 | NES / Famicom | `NES` | fceumm | Nostalgist |
 | Super Nintendo | `SNES` | snes9x | Nostalgist |
-| Nintendo 64 | `N64` | mupen64plus_next | BinBashBanana |
+| Nintendo 64 | `N64` | mupen64plus_next | linuxserver |
 | Game Boy / Color | `GB`, `GBC` | gambatte | Nostalgist |
 | Game Boy Advance | `GBA` | mgba | Nostalgist |
-| Nintendo DS | `NDS` | melonds | BinBashBanana |
+| Nintendo DS | `NDS` | melonds | linuxserver |
 | PlayStation | `PS1` | pcsx_rearmed | Nostalgist |
 | Sega Genesis / Mega Drive | `GENESIS` | genesis_plus_gx | Nostalgist |
 | Sega Master System | `MASTER_SYSTEM` | gearsystem | Nostalgist |
 | Game Gear | `GAME_GEAR` | gearsystem | Nostalgist |
-| Sega Saturn | `SATURN` | yabause | BinBashBanana |
+| Sega Saturn | `SATURN` | yabause | linuxserver |
 | Neo Geo | `NEOGEO` | fbalpha2012_neogeo | Nostalgist |
 | Arcade (FBNeo) | `ARCADE` | fbneo | Nostalgist |
-| Atari 2600 | `ATARI_2600` | stella2014 | BinBashBanana |
-| Atari 5200 | `ATARI_5200` | a5200 | BinBashBanana |
-| Atari 7800 | `ATARI_7800` | prosystem | BinBashBanana |
+| Atari 2600 | `ATARI_2600` | stella2014 | linuxserver |
+| Atari 5200 | `ATARI_5200` | a5200 | linuxserver |
+| Atari 7800 | `ATARI_7800` | prosystem | linuxserver |
 | Atari Lynx | `LYNX` | handy | Nostalgist |
 | PC Engine / TurboGrafx-16 | `PC_ENGINE` | mednafen_pce_fast | Nostalgist |
 | WonderSwan / Color | `WONDERSWAN`, `WONDERSWAN_COLOR` | mednafen_wswan | Nostalgist |
@@ -188,9 +208,13 @@ import { en } from 'koin.js';
 | Neo Geo Pocket / Color | `NEOGEO_POCKET`, `NEOGEO_POCKET_COLOR` | mednafen_ngp | Nostalgist |
 | Commodore 64 | `C64` | vice_x64 | Nostalgist |
 
-> **Note:** Systems marked **BinBashBanana** use cores from [BinBashBanana/webretro](https://github.com/BinBashBanana/webretro) via jsDelivr. Dreamcast and PSP are currently unavailable due to lack of compatible WASM cores.
+> **Note:** Systems marked **linuxserver** use cores from [linuxserver/libretro-cores](https://github.com/linuxserver/libretro-cores) via jsDelivr. Dreamcast and PSP are currently unavailable due to lack of compatible WASM cores — or bring your own core (see above).
 
 [Full system details →](https://koin.js.org/docs/systems)
+
+## ROM & BIOS Files
+
+koin.js does not include, host, or distribute any ROM, ISO, or BIOS files. You must supply your own, legally obtained from media you own. The examples in this repo and its live demo use freely distributable homebrew games for exactly this reason.
 
 ## Requirements
 
