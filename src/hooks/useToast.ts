@@ -43,7 +43,9 @@ export function useToast(defaultDuration: number = 3000): UseToastReturn {
         type: ToastType = 'info',
         options?: ShowToastOptions
     ) => {
-        const id = crypto.randomUUID();
+        const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         const duration = options?.duration ?? defaultDuration;
 
         const newToast: Toast = {

@@ -15,6 +15,7 @@ import FloatingPauseButton from './UI/FloatingPauseButton';
 import GameCanvas from './GameCanvas';
 import GameModals from './GameModals';
 import RASidebar from './RASidebar';
+import ErrorBoundary from './UI/ErrorBoundary';
 
 import { useGamePlayer } from '../hooks/useGamePlayer';
 import { usePlayerPersistence } from '../hooks/usePlayerPersistence';
@@ -26,13 +27,15 @@ import { en, es, fr } from '../locales';
 import { deepMerge } from '../lib/common-utils';
 import { KoinTranslations } from '../locales/types';
 
+interface GamePlayerInnerProps extends GamePlayerProps {
+    controls?: KeyboardMapping;
+    saveControls?: (controls: KeyboardMapping) => void;
+    currentLanguage: 'en' | 'es' | 'fr';
+    onLanguageChange: (lang: 'en' | 'es' | 'fr') => void;
+}
+
 const GamePlayerInner = memo(function GamePlayerInner(
-    props: GamePlayerProps & {
-        controls?: KeyboardMapping;
-        saveControls?: (controls: KeyboardMapping) => void;
-        currentLanguage?: 'en' | 'es' | 'fr';
-        onLanguageChange?: (lang: 'en' | 'es' | 'fr') => void;
-    }
+    props: GamePlayerInnerProps
 ) {
     // -- Persistence Hook --
     const { settings, updateSettings, isLoaded: settingsLoaded } = usePlayerPersistence();
@@ -558,8 +561,8 @@ const GamePlayerInner = memo(function GamePlayerInner(
                     settingsModalOpen={settingsModalOpen}
                     setSettingsModalOpen={setSettingsModalOpen}
                     // Props passed from wrapper
-                    currentLanguage={(props as any).currentLanguage}
-                    onLanguageChange={(props as any).onLanguageChange}
+                    currentLanguage={props.currentLanguage}
+                    onLanguageChange={props.onLanguageChange}
                     hapticsEnabled={settings.hapticsEnabled}
                     onToggleHaptics={handleToggleHaptics}
                 />
@@ -611,13 +614,15 @@ export const GamePlayer = memo(function GamePlayer(
     }, []);
 
     return (
-        <KoinI18nProvider translations={effectiveTranslations}>
-            <GamePlayerInner
-                {...props}
-                currentLanguage={currentLanguage}
-                onLanguageChange={handleLanguageChange}
-            />
-        </KoinI18nProvider>
+        <ErrorBoundary onError={props.onError} onExit={props.onExit}>
+            <KoinI18nProvider translations={effectiveTranslations}>
+                <GamePlayerInner
+                    {...props}
+                    currentLanguage={currentLanguage}
+                    onLanguageChange={handleLanguageChange}
+                />
+            </KoinI18nProvider>
+        </ErrorBoundary>
     );
 });
 

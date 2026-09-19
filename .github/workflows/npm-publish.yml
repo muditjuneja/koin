@@ -57,9 +57,9 @@ jobs:
         if: steps.compare.outputs.should_publish == 'true'
         run: npm ci
 
-      - name: Build library
+      - name: Verify and build library
         if: steps.compare.outputs.should_publish == 'true'
-        run: npm run build
+        run: npm run verify
 
       - name: Publish to npm
         if: steps.compare.outputs.should_publish == 'true'

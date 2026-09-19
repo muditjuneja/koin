@@ -39,10 +39,12 @@ export function usePlayerPersistence(
     // Load from storage on mount
     useEffect(() => {
         try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                setSettings(prev => ({ ...prev, ...parsed }));
+            if (typeof window !== 'undefined' && window.localStorage) {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    setSettings(prev => ({ ...prev, ...parsed }));
+                }
             }
         } catch (e) {
             console.error('Failed to load player settings', e);
@@ -57,7 +59,9 @@ export function usePlayerPersistence(
 
             // Persist
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+                }
             } catch (e) {
                 console.error('Failed to save player settings', e);
             }
