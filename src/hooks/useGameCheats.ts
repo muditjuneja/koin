@@ -11,6 +11,28 @@ interface UseGameCheatsProps extends Partial<GamePlayerProps> {
 // Helper to generate unique manual cheat ID
 const generateManualId = () => `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * Safe localStorage wrappers — no-ops when storage is unavailable
+ * (SSR, sandboxed iframes, strict incognito, QuotaExceeded).
+ */
+const safeGetItem = (key: string): string | null => {
+    try {
+        if (typeof window === 'undefined' || !window.localStorage) return null;
+        return window.localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+};
+
+const safeSetItem = (key: string, value: string): void => {
+    try {
+        if (typeof window === 'undefined' || !window.localStorage) return;
+        window.localStorage.setItem(key, value);
+    } catch {
+        // QuotaExceeded, SecurityError — silently skip
+    }
+};
+
 export function useGameCheats({
     nostalgist,
     cheats = [],
@@ -31,7 +53,7 @@ export function useGameCheats({
         if (!cheatStorageKey) return;
         setIsLoaded(false);
         try {
-            const stored = localStorage.getItem(cheatStorageKey);
+            const stored = safeGetItem(cheatStorageKey);
             if (stored) {
                 const parsed = JSON.parse(stored);
                 if (Array.isArray(parsed)) {
@@ -48,8 +70,9 @@ export function useGameCheats({
     // Save manual cheats to storage
     useEffect(() => {
         if (!cheatStorageKey || !isLoaded) return;
-        localStorage.setItem(cheatStorageKey, JSON.stringify(manualCheatsInternal));
+        safeSetItem(cheatStorageKey, JSON.stringify(manualCheatsInternal));
     }, [manualCheatsInternal, cheatStorageKey, isLoaded]);
+
 
     // Unified cheat list: normalize external cheats + include manual cheats
     const allCheats = useMemo<Cheat[]>(() => {

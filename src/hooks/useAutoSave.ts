@@ -136,7 +136,7 @@ export function useAutoSave({
         };
 
         const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
-            if (!document.hidden) {
+            if (!document.hidden && !queueRef.current.isBusy) {
                 performEmergencySave();
             }
         };

@@ -40,6 +40,13 @@ export function useGameRecording({
     const startTimeRef = useRef<number>(0);
     const pausedTimeRef = useRef<number>(0);
     const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // Ref mirror so the duration interval always reads the live paused state
+    const isPausedRef = useRef(false);
+
+    // Keep the ref in sync
+    useEffect(() => {
+        isPausedRef.current = isPaused;
+    }, [isPaused]);
 
     // Check browser support
     const isSupported = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm');
@@ -81,11 +88,12 @@ export function useGameRecording({
             pausedTimeRef.current = 0;
             setIsRecording(true);
             setIsPaused(false);
+            isPausedRef.current = false;
             setRecordingDuration(0);
 
-            // Update duration every second
+            // Update duration every second — read isPausedRef (not isPaused) to avoid stale closure
             durationIntervalRef.current = setInterval(() => {
-                if (!isPaused) {
+                if (!isPausedRef.current) {
                     const elapsed = (Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000;
                     setRecordingDuration(Math.floor(elapsed));
                 }
@@ -95,7 +103,8 @@ export function useGameRecording({
         } catch (err) {
             console.error('[Recording] Failed to start:', err);
         }
-    }, [getCanvasElement, isSupported, isPaused]);
+    }, [getCanvasElement, isSupported]);
+
 
     // Stop recording and return blob
     const stopRecording = useCallback(async (): Promise<Blob | null> => {
