@@ -8,9 +8,18 @@ import { hexToRgb } from '../../lib/system-colors';
 interface CabinetLoadingProps {
   system?: string;
   systemColor?: string;
+  /** Text shown on the cabinet's screen, below the spinner. */
+  loadingText?: string;
+  /** Text shown below the cabinet. */
+  subtitle?: string;
 }
 
-export default function CabinetLoading({ system, systemColor = '#00FF41' }: CabinetLoadingProps) {
+export default function CabinetLoading({
+  system,
+  systemColor = '#00FF41',
+  loadingText = 'LOADING...',
+  subtitle = 'Initializing cartridge...',
+}: CabinetLoadingProps) {
   // Convert hex to RGB for rgba() format to enable smooth transitions
   const rgb = useMemo(() => hexToRgb(systemColor), [systemColor]);
 
@@ -38,7 +47,7 @@ export default function CabinetLoading({ system, systemColor = '#00FF41' }: Cabi
                 className="font-mono text-sm animate-pulse transition-colors duration-500 ease-out"
                 style={{ color: systemColor }}
               >
-                LOADING...
+                {loadingText}
               </p>
             </div>
           </div>
@@ -74,7 +83,7 @@ export default function CabinetLoading({ system, systemColor = '#00FF41' }: Cabi
         className="text-xs mt-6 font-mono animate-pulse transition-colors duration-500 ease-out"
         style={{ color: systemColor }}
       >
-        Initializing cartridge...
+        {subtitle}
       </p>
     </div>
   );
