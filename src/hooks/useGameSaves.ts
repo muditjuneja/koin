@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { UseNostalgistReturn } from './useNostalgist';
 import { useKoinTranslation } from './useKoinTranslation';
 import { GamePlayerProps, SaveSlot } from '../components/types';
@@ -26,6 +26,27 @@ export function useGameSaves({
     autoSaveInterval,
 }: UseGameSavesProps) {
     const t = useKoinTranslation();
+
+    const showToastRef = useRef(showToast);
+    useEffect(() => {
+        showToastRef.current = showToast;
+    }, [showToast]);
+
+    const pauseRef = useRef(pause);
+    useEffect(() => {
+        pauseRef.current = pause;
+    }, [pause]);
+
+    const resumeRef = useRef(resume);
+    useEffect(() => {
+        resumeRef.current = resume;
+    }, [resume]);
+
+    const tRef = useRef(t);
+    useEffect(() => {
+        tRef.current = t;
+    }, [t]);
+
     // Save Slot Modal state
     const [saveModalOpen, setSaveModalOpen] = useState(false);
     const [saveModalMode, setSaveModalMode] = useState<'save' | 'load'>('save');
@@ -59,22 +80,22 @@ export function useGameSaves({
             setSaveSlots(slots);
         } catch (err) {
             console.error('Failed to fetch save slots:', err);
-            showToast(t.notifications.failedFetch, 'error', { title: t.overlays.toast.error });
+            showToastRef.current(tRef.current.notifications.failedFetch, 'error', { title: tRef.current.overlays.toast.error });
         } finally {
             setIsSlotLoading(false);
         }
-    }, [onGetSaveSlots, showToast, t]);
+    }, [onGetSaveSlots]);
 
 
     // Handlers
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (!nostalgist) return;
 
         if (onGetSaveSlots && onSaveState) {
             // Open modal for slot selection
             setSaveModalMode('save');
             setSaveModalOpen(true);
-            pause(); // Pause game while in modal
+            pauseRef.current(); // Pause game while in modal
             refreshSlots();
         } else if (onSaveState) {
             // Direct save to slot 0 if no slot system
@@ -82,7 +103,7 @@ export function useGameSaves({
                 const result = await nostalgist.saveStateWithBlob();
                 if (result) {
                     await onSaveState(0, result.blob, undefined);
-                    showToast(t.notifications.saved, 'success', { title: t.overlays.toast.saved });
+                    showToastRef.current(tRef.current.notifications.saved, 'success', { title: tRef.current.overlays.toast.saved });
                 }
             });
         } else {
@@ -97,20 +118,20 @@ export function useGameSaves({
                     a.download = `${fileName}.state`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    showToast(t.notifications.downloaded, 'success', { title: t.overlays.toast.saved });
+                    showToastRef.current(tRef.current.notifications.downloaded, 'success', { title: tRef.current.overlays.toast.saved });
                 }
             });
         }
-    };
+    }, [nostalgist, onGetSaveSlots, onSaveState, refreshSlots, title]);
 
-    const handleLoad = async () => {
+    const handleLoad = useCallback(async () => {
         if (!nostalgist) return;
 
         if (onGetSaveSlots && onLoadState) {
             // Open modal for slot selection
             setSaveModalMode('load');
             setSaveModalOpen(true);
-            pause();
+            pauseRef.current();
             refreshSlots();
         } else if (onLoadState) {
             // Direct load from slot 0
@@ -120,9 +141,9 @@ export function useGameSaves({
                 await queueRef.current.add(async () => {
                     await nostalgist.loadState(new Uint8Array(buffer));
                 });
-                showToast(t.notifications.loaded, 'success', { title: t.overlays.toast.loaded });
+                showToastRef.current(tRef.current.notifications.loaded, 'success', { title: tRef.current.overlays.toast.loaded });
             } else {
-                showToast(t.notifications.noSaveFound, 'error', { title: t.overlays.toast.error });
+                showToastRef.current(tRef.current.notifications.noSaveFound, 'error', { title: tRef.current.overlays.toast.error });
             }
         } else {
             // Default: Open file picker
@@ -136,14 +157,14 @@ export function useGameSaves({
                     await queueRef.current.add(async () => {
                         await nostalgist.loadState(new Uint8Array(buffer));
                     });
-                    showToast(t.notifications.loadedFile, 'success', { title: t.overlays.toast.loaded });
+                    showToastRef.current(tRef.current.notifications.loadedFile, 'success', { title: tRef.current.overlays.toast.loaded });
                 }
             };
             input.click();
         }
-    };
+    }, [nostalgist, onGetSaveSlots, onLoadState, refreshSlots]);
 
-    const handleSlotSelect = async (slot: number) => {
+    const handleSlotSelect = useCallback(async (slot: number) => {
         if (!nostalgist) return;
 
         if (saveModalMode === 'save') {
@@ -165,14 +186,14 @@ export function useGameSaves({
                         }
 
                         await onSaveState(slot, result.blob, screen);
-                        showToast(t.notifications.savedSlot.replace('{{num}}', slot.toString()), 'success', { title: t.overlays.toast.saved });
+                        showToastRef.current(tRef.current.notifications.savedSlot.replace('{{num}}', slot.toString()), 'success', { title: tRef.current.overlays.toast.saved });
                         setSaveModalOpen(false);
-                        resume();
+                        resumeRef.current();
                     }
                 });
             } catch (err) {
                 console.error('Save failed:', err);
-                showToast(t.notifications.failedSave, 'error', { title: t.overlays.toast.error });
+                showToastRef.current(tRef.current.notifications.failedSave, 'error', { title: tRef.current.overlays.toast.error });
             } finally {
                 setActioningSlot(null);
             }
@@ -186,37 +207,37 @@ export function useGameSaves({
                     await queueRef.current.add(async () => {
                         await nostalgist.loadState(new Uint8Array(buffer));
                     });
-                    showToast(t.notifications.loadedSlot.replace('{{num}}', slot.toString()), 'success', { title: t.overlays.toast.loaded });
+                    showToastRef.current(tRef.current.notifications.loadedSlot.replace('{{num}}', slot.toString()), 'success', { title: tRef.current.overlays.toast.loaded });
                     setSaveModalOpen(false);
-                    resume();
+                    resumeRef.current();
                 } else {
-                    showToast(t.notifications.emptySlot, 'error', { title: t.overlays.toast.error });
+                    showToastRef.current(tRef.current.notifications.emptySlot, 'error', { title: tRef.current.overlays.toast.error });
                 }
             } catch (err) {
                 console.error('Load failed:', err);
-                showToast(t.notifications.failedLoad, 'error', { title: t.overlays.toast.error });
+                showToastRef.current(tRef.current.notifications.failedLoad, 'error', { title: tRef.current.overlays.toast.error });
             } finally {
                 setActioningSlot(null);
             }
         }
-    };
+    }, [nostalgist, saveModalMode, onSaveState, onLoadState]);
 
-    const handleSlotDelete = async (slot: number) => {
+    const handleSlotDelete = useCallback(async (slot: number) => {
         if (!onDeleteSaveState) return;
-        if (!confirm('Are you sure you want to delete this save?')) return;
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm('Are you sure you want to delete this save?')) return;
 
         setActioningSlot(slot);
         try {
             await onDeleteSaveState(slot);
-            showToast(t.notifications.deletedSlot.replace('{{num}}', slot.toString()), 'success', { title: t.overlays.toast.saved });
+            showToastRef.current(tRef.current.notifications.deletedSlot.replace('{{num}}', slot.toString()), 'success', { title: tRef.current.overlays.toast.saved });
             refreshSlots(); // Refresh list
         } catch (err) {
             console.error('Delete failed:', err);
-            showToast(t.notifications.failedDelete, 'error', { title: t.overlays.toast.error });
+            showToastRef.current(tRef.current.notifications.failedDelete, 'error', { title: tRef.current.overlays.toast.error });
         } finally {
             setActioningSlot(null);
         }
-    };
+    }, [onDeleteSaveState, refreshSlots]);
 
     return {
         saveModalOpen,

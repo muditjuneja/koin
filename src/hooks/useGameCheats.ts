@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { GamePlayerProps, Cheat } from '../components/types';
 import { UseNostalgistReturn } from './useNostalgist';
-import { GamePlayerProps } from '../components/types';
-import { Cheat } from '../components/types';
 
 interface UseGameCheatsProps extends Partial<GamePlayerProps> {
     nostalgist: UseNostalgistReturn | null;
     showToast?: (message: string, type?: 'success' | 'error' | 'info' | 'warning', options?: any) => void;
+    romId?: string;
 }
 
 // Helper to generate unique manual cheat ID
@@ -45,10 +45,20 @@ export function useGameCheats({
     const [manualCheatsInternal, setManualCheatsInternal] = useState<Cheat[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    const showToastRef = useRef(showToast);
+    useEffect(() => {
+        showToastRef.current = showToast;
+    }, [showToast]);
+
+    const onToggleCheatRef = useRef(onToggleCheat);
+    useEffect(() => {
+        onToggleCheatRef.current = onToggleCheat;
+    }, [onToggleCheat]);
+
     // Persistence key
     const cheatStorageKey = romId ? `koin_cheats_${romId}` : null;
 
-    // Load manual cheats from storage
+    // Load manual cheats from storage on mount/key change
     useEffect(() => {
         if (!cheatStorageKey) return;
         setIsLoaded(false);
@@ -61,10 +71,9 @@ export function useGameCheats({
                 }
             }
         } catch (e) {
-            console.error('[Cheats] Failed to load cheats:', e);
-        } finally {
-            setIsLoaded(true);
+            console.error('Failed to load manual cheats', e);
         }
+        setIsLoaded(true);
     }, [cheatStorageKey]);
 
     // Save manual cheats to storage
@@ -85,7 +94,7 @@ export function useGameCheats({
         return [...normalizedExternal, ...manualCheatsInternal];
     }, [cheats, manualCheatsInternal]);
 
-    const handleAddManualCheat = (code: string, description: string) => {
+    const handleAddManualCheat = useCallback((code: string, description: string) => {
         if (!nostalgist) return;
 
         const newCheat: Cheat = {
@@ -96,48 +105,53 @@ export function useGameCheats({
         };
 
         setManualCheatsInternal((prev) => [...prev, newCheat]);
-        setActiveCheats((prev) => new Set(prev).add(newCheat.id));
+        setActiveCheats((prev) => {
+            const next = new Set(prev);
+            next.add(newCheat.id);
+
+            const cheatsToInject = allCheats
+                .filter(c => next.has(c.id) && c.id !== newCheat.id)
+                .concat([newCheat])
+                .map(c => ({ code: c.code }));
+            nostalgist.injectCheats(cheatsToInject);
+
+            return next;
+        });
         setCheatsModalOpen(false);
-
-        // Inject the newly active cheat immediately - full list needed
-        const currentActiveCheats = [...activeCheats, newCheat.id];
-        const cheatsToInject = allCheats
-            .filter(c => currentActiveCheats.includes(c.id) || c.id === newCheat.id)
-            .concat([newCheat]);
-        nostalgist.injectCheats(cheatsToInject.map(c => ({ code: c.code })));
         nostalgist.resume();
-        showToast?.('Cheat added!', 'success');
-    };
+        showToastRef.current?.('Cheat added!', 'success');
+    }, [nostalgist, allCheats]);
 
-    const handleToggleCheat = (cheatId: string) => {
+    const handleToggleCheat = useCallback((cheatId: string) => {
         if (!nostalgist) return;
 
-        const newActiveCheats = new Set(activeCheats);
-        const isActive = newActiveCheats.has(cheatId);
+        setActiveCheats((prev) => {
+            const newActiveCheats = new Set(prev);
+            const isActive = newActiveCheats.has(cheatId);
 
-        if (isActive) {
-            newActiveCheats.delete(cheatId);
-            showToast?.('Cheat Disabled');
-        } else {
-            newActiveCheats.add(cheatId);
-            showToast?.('Cheat Enabled', 'success');
-        }
-        setActiveCheats(newActiveCheats);
-
-        // Notify external handler (convert back to number if it's a DB cheat)
-        if (onToggleCheat) {
-            const numericId = cheatId.startsWith('db-') ? parseInt(cheatId.slice(3), 10) : undefined;
-            if (numericId !== undefined) {
-                onToggleCheat(numericId, !isActive);
+            if (isActive) {
+                newActiveCheats.delete(cheatId);
+                showToastRef.current?.('Cheat Disabled');
+            } else {
+                newActiveCheats.add(cheatId);
+                showToastRef.current?.('Cheat Enabled', 'success');
             }
-        }
 
-        // Re-inject all active cheats
-        const cheatsToInject = allCheats
-            .filter(c => newActiveCheats.has(c.id))
-            .map(c => ({ code: c.code }));
-        nostalgist.injectCheats(cheatsToInject);
-    };
+            if (onToggleCheatRef.current) {
+                const numericId = cheatId.startsWith('db-') ? parseInt(cheatId.slice(3), 10) : undefined;
+                if (numericId !== undefined) {
+                    onToggleCheatRef.current(numericId, !isActive);
+                }
+            }
+
+            const cheatsToInject = allCheats
+                .filter(c => newActiveCheats.has(c.id))
+                .map(c => ({ code: c.code }));
+            nostalgist.injectCheats(cheatsToInject);
+
+            return newActiveCheats;
+        });
+    }, [nostalgist, allCheats]);
 
     return {
         cheatsModalOpen,

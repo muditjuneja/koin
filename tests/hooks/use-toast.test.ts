@@ -137,4 +137,43 @@ describe('useToast Hook Lifecycle & Resilience', () => {
         toast.action?.onClick();
         expect(actionSpy).toHaveBeenCalledTimes(1);
     });
+
+    it('cleans up auto-dismiss timers on unmount', () => {
+        const { result, unmount } = renderHook(() => useToast(3000));
+
+        act(() => {
+            result.current.showToast('Unmount test', 'info');
+        });
+
+        expect(result.current.toasts.length).toBe(1);
+        unmount();
+
+        // Advancing timers after unmount should not throw or cause state update warnings
+        expect(() => {
+            act(() => {
+                vi.advanceTimersByTime(3500);
+            });
+        }).not.toThrow();
+    });
+
+    it('cancels auto-dismiss timer when toast is manually dismissed', () => {
+        const { result } = renderHook(() => useToast(3000));
+
+        act(() => {
+            result.current.showToast('Dismiss test', 'info');
+        });
+
+        const id = result.current.toasts[0].id;
+
+        act(() => {
+            result.current.dismissToast(id);
+        });
+        expect(result.current.toasts.length).toBe(0);
+
+        act(() => {
+            vi.advanceTimersByTime(3500);
+        });
+        expect(result.current.toasts.length).toBe(0);
+    });
 });
+

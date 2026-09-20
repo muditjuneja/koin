@@ -248,4 +248,64 @@ describe('useGameRecording', () => {
 
         expect(mockMediaRecorder.stop).toHaveBeenCalledTimes(1);
     });
+
+    // -----------------------------------------------------------------------
+    // 10. Accurately accumulates paused duration across multiple pause/resume cycles
+    // -----------------------------------------------------------------------
+    it('accumulates paused duration across multiple pause/resume cycles', () => {
+        vi.useFakeTimers();
+
+        const { result } = renderHook(() => useGameRecording({ getCanvasElement }));
+
+        act(() => {
+            result.current.startRecording();
+        });
+
+        // Record for 2 seconds
+        act(() => {
+            vi.advanceTimersByTime(2000);
+        });
+        expect(result.current.recordingDuration).toBe(2);
+
+        // Pause 1 for 5 seconds
+        mockMediaRecorder.state = 'recording';
+        act(() => {
+            result.current.pauseRecording();
+        });
+        act(() => {
+            vi.advanceTimersByTime(5000);
+        });
+        expect(result.current.recordingDuration).toBe(2);
+
+        // Resume and record for 3 seconds
+        mockMediaRecorder.state = 'paused';
+        act(() => {
+            result.current.resumeRecording();
+        });
+        act(() => {
+            vi.advanceTimersByTime(3000);
+        });
+        expect(result.current.recordingDuration).toBe(5);
+
+        // Pause 2 for 4 seconds
+        mockMediaRecorder.state = 'recording';
+        act(() => {
+            result.current.pauseRecording();
+        });
+        act(() => {
+            vi.advanceTimersByTime(4000);
+        });
+        expect(result.current.recordingDuration).toBe(5);
+
+        // Resume and record for 2 seconds
+        mockMediaRecorder.state = 'paused';
+        act(() => {
+            result.current.resumeRecording();
+        });
+        act(() => {
+            vi.advanceTimersByTime(2000);
+        });
+        expect(result.current.recordingDuration).toBe(7);
+    });
 });
+

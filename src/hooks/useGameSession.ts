@@ -71,11 +71,12 @@ export function useGameSession(props: UseGameSessionProps) {
 
     // Load gamepad bindings — counter triggers reload after remapping
     const [gamepadBindingsVersion, setGamepadBindingsVersion] = useState(0);
+    const gamepadsCount = gamepads.length;
     const gamepadBindings = useMemo(() => {
-        const playerCount = Math.max(gamepads.length, 1);
+        void gamepadBindingsVersion;
+        const playerCount = Math.max(gamepadsCount, 1);
         return loadAllGamepadMappings(playerCount);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gamepads.length, gamepadBindingsVersion]);
+    }, [gamepadsCount, gamepadBindingsVersion]);
 
     // Soft restart state — logic defined after nostalgist hook below
     const savedStateForRestart = useRef<Uint8Array | null>(null);
@@ -201,6 +202,21 @@ export function useGameSession(props: UseGameSessionProps) {
         }
     }, [status, nostalgist]);
 
+    const nostalgistRef = useRef(nostalgist);
+    useEffect(() => {
+        nostalgistRef.current = nostalgist;
+    }, [nostalgist]);
+
+    const showToastRef = useRef(showToast);
+    useEffect(() => {
+        showToastRef.current = showToast;
+    }, [showToast]);
+
+    const tRef = useRef(t);
+    useEffect(() => {
+        tRef.current = t;
+    }, [t]);
+
     // Effect: runs after React renders with updated bindings → performs the actual restart
     useEffect(() => {
         if (!softRestartPending) return;
@@ -208,9 +224,9 @@ export function useGameSession(props: UseGameSessionProps) {
 
         const doSoftRestart = async () => {
             try {
-                showToast(t.notifications.controlsSaved, 'info', { duration: 2000 });
+                showToastRef.current(tRef.current.notifications.controlsSaved, 'info', { duration: 2000 });
 
-                await nostalgist.restart();
+                await nostalgistRef.current.restart();
 
                 // Wait for the emulator to fully initialize and render first frames
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -218,7 +234,7 @@ export function useGameSession(props: UseGameSessionProps) {
                 // Restore saved state so the user picks up where they left off
                 const saved = savedStateForRestart.current;
                 if (saved) {
-                    await nostalgist.loadState(saved);
+                    await nostalgistRef.current.loadState(saved);
                     savedStateForRestart.current = null;
                 }
             } catch (err) {
@@ -227,7 +243,6 @@ export function useGameSession(props: UseGameSessionProps) {
         };
 
         doSoftRestart();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [softRestartPending]);
 
     // Hardcore Restrictions

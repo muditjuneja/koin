@@ -81,11 +81,21 @@ export function useEmulatorCore({
     const nostalgistRef = useRef<Nostalgist | null>(null);
     const isStartingRef = useRef(false); // Prevent double start
 
-    // Keep getCanvasElement in ref so caller inline functions do not invalidate prepare or screenshot callbacks
+    // Keep callbacks in refs so caller inline functions do not invalidate prepare, start, or screenshot callbacks
     const getCanvasElementRef = useRef(getCanvasElement);
     useEffect(() => {
         getCanvasElementRef.current = getCanvasElement;
     }, [getCanvasElement]);
+
+    const onErrorRef = useRef(onError);
+    useEffect(() => {
+        onErrorRef.current = onError;
+    }, [onError]);
+
+    const onReadyRef = useRef(onReady);
+    useEffect(() => {
+        onReadyRef.current = onReady;
+    }, [onReady]);
 
     // Prepare the emulator (load files without starting)
     const prepare = useCallback(async () => {
@@ -339,9 +349,9 @@ export function useEmulatorCore({
             const reportedError = err instanceof Error
                 ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
                 : new Error(errorMessage);
-            onError?.(reportedError);
+            onErrorRef.current?.(reportedError);
         }
-    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, initialVolume, onError, retroAchievements, romFileName, romId, shader]);
+    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, initialVolume, retroAchievements, romFileName, romId, shader]);
 
 
 
@@ -380,7 +390,7 @@ export function useEmulatorCore({
             setStatus('running');
             setIsPaused(false);
 
-            onReady?.();
+            onReadyRef.current?.();
         } catch (err) {
             const errorMessage = err instanceof Error
                 ? describeRomLoadError(err, romUrl)
@@ -391,11 +401,11 @@ export function useEmulatorCore({
             const reportedError = err instanceof Error
                 ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
                 : new Error(errorMessage);
-            onError?.(reportedError);
+            onErrorRef.current?.(reportedError);
         } finally {
             isStartingRef.current = false;
         }
-    }, [prepare, onReady, onError, romUrl]);
+    }, [prepare, romUrl]);
 
     // Stop the emulator
     const stop = useCallback(() => {

@@ -39,18 +39,27 @@ export function useAnimatedVisibility({
         onExitRef.current = onExit;
     }, [onExit]);
 
+    const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        };
+    }, []);
+
     // Animate in on mount
     useEffect(() => {
-        requestAnimationFrame(() => {
+        const rafId = requestAnimationFrame(() => {
             setIsVisible(true);
         });
+        return () => cancelAnimationFrame(rafId);
     }, []);
 
     const triggerExit = useCallback(() => {
         if (isExiting) return; // Prevent double-exit
 
         setIsExiting(true);
-        setTimeout(() => {
+        if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = setTimeout(() => {
             onExitRef.current?.();
         }, exitDuration);
     }, [isExiting, exitDuration]);
@@ -58,14 +67,14 @@ export function useAnimatedVisibility({
 
     // Auto-dismiss timer
     useEffect(() => {
-        if (!autoDismissMs) return;
+        if (!autoDismissMs || isExiting) return;
 
         const timer = setTimeout(() => {
             triggerExit();
         }, autoDismissMs);
 
         return () => clearTimeout(timer);
-    }, [autoDismissMs, triggerExit]);
+    }, [autoDismissMs, triggerExit, isExiting]);
 
 
     // Common transition classes for slide-in-right pattern

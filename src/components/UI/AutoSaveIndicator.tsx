@@ -31,6 +31,7 @@ export default function AutoSaveIndicator({
 
     // Smooth progress animation when transitioning between states
     useEffect(() => {
+        let rafId: number | null = null;
         const prevState = prevStateRef.current;
 
         if (state === 'done' && prevState === 'saving') {
@@ -49,13 +50,13 @@ export default function AutoSaveIndicator({
                 setDisplayProgress(currentProgress);
 
                 if (progressRatio < 1) {
-                    requestAnimationFrame(animate);
+                    rafId = requestAnimationFrame(animate);
                 } else {
                     setDisplayProgress(targetProgress);
                 }
             };
 
-            requestAnimationFrame(animate);
+            rafId = requestAnimationFrame(animate);
         } else if (state === 'counting' && prevState === 'done') {
             // Smoothly reset progress from 100% to 0% when restarting
             const startProgress = displayProgressRef.current;
@@ -72,19 +73,25 @@ export default function AutoSaveIndicator({
                 setDisplayProgress(currentProgress);
 
                 if (progressRatio < 1) {
-                    requestAnimationFrame(animate);
+                    rafId = requestAnimationFrame(animate);
                 } else {
                     setDisplayProgress(targetProgress);
                 }
             };
 
-            requestAnimationFrame(animate);
+            rafId = requestAnimationFrame(animate);
         } else if (state !== 'done') {
             // For other state changes, update progress immediately but smoothly
             setDisplayProgress(progress);
         }
 
         prevStateRef.current = state;
+
+        return () => {
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+            }
+        };
     }, [state, progress]); // Removed displayProgress from deps to avoid loops
 
     // Smooth icon transitions with fade

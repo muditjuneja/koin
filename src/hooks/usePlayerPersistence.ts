@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ShaderPresetId } from '../lib/shader-presets';
 
 const STORAGE_KEY = 'koin-player-settings';
@@ -36,6 +36,18 @@ export function usePlayerPersistence(
     const [settings, setSettings] = useState<PlayerSettings>(DEFAULT_SETTINGS);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    const onSettingsChangeRef = useRef(onSettingsChange);
+    useEffect(() => {
+        onSettingsChangeRef.current = onSettingsChange;
+    }, [onSettingsChange]);
+
+    const callbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (callbackTimeoutRef.current) clearTimeout(callbackTimeoutRef.current);
+        };
+    }, []);
+
     // Load from storage on mount
     useEffect(() => {
         try {
@@ -67,13 +79,16 @@ export function usePlayerPersistence(
             }
 
             // Schedule callback AFTER state update completes
-            if (onSettingsChange) {
-                setTimeout(() => onSettingsChange(next), 0);
+            if (onSettingsChangeRef.current) {
+                if (callbackTimeoutRef.current) clearTimeout(callbackTimeoutRef.current);
+                callbackTimeoutRef.current = setTimeout(() => {
+                    onSettingsChangeRef.current?.(next);
+                }, 0);
             }
 
             return next;
         });
-    }, [onSettingsChange]);
+    }, []);
 
     return {
         settings,

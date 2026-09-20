@@ -48,10 +48,9 @@ export function useVolume({
         setIsMutedState(prev => {
             const newMuted = !prev;
             saveMuteState(newMuted);
-            // Schedule side effect AFTER state update completes
-            setTimeout(() => toggleMuteInHook(), 0);
             return newMuted;
         });
+        toggleMuteInHook();
     }, [toggleMuteInHook]);
 
     return {
