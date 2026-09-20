@@ -31,6 +31,10 @@ interface UseNostalgistOptions {
     onReady?: () => void;
     onError?: (error: Error) => void;
     initialVolume?: number;
+    // Fires once the game's audio GainNode exists (see useEmulatorAudio) —
+    // netplay's audio tap uses this to know when getAudioStream() will
+    // start returning real data, instead of polling.
+    onGainNodeReady?: (gainNode: GainNode) => void;
     romFileName?: string;
     shader?: string; // CRT shader preset (e.g., 'crt/crt-lottes')
     romId?: string;
@@ -72,6 +76,9 @@ export interface UseNostalgistReturn {
     // Volume
     setVolume: (volume: number) => void;
     toggleMute: () => void;
+    // A live MediaStream of the game's audio, for netplay's audio tap.
+    // Returns null until the game has made its first sound — see onGainNodeReady.
+    getAudioStream: () => MediaStream | null;
 
     // Utils
     screenshot: () => Promise<string | null>;
@@ -105,6 +112,7 @@ export const useNostalgist = ({
     onReady,
     onError,
     initialVolume = 100,
+    onGainNodeReady,
     romFileName,
     shader,
     romId,
@@ -163,9 +171,11 @@ export const useNostalgist = ({
         isMuted,
         setVolume,
         toggleMute,
+        getAudioStream,
     } = useEmulatorAudio({
         nostalgistRef,
         initialVolume,
+        onGainNodeReady,
     });
 
     // 3. Input Logic (Press Key, Press Down/Up)
@@ -254,6 +264,7 @@ export const useNostalgist = ({
 
         setVolume,
         toggleMute,
+        getAudioStream,
 
         screenshot,
         pressKey,
@@ -273,7 +284,7 @@ export const useNostalgist = ({
         saveState, saveStateWithBlob, loadState,
         setSpeed, startRewind, stopRewind,
         isHeavySystem,
-        setVolume, toggleMute,
+        setVolume, toggleMute, getAudioStream,
         screenshot, pressKey, pressDown, pressUp, resize,
         injectCheats, clearCheats,
         getNostalgistInstance,

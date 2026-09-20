@@ -4,6 +4,14 @@ import { Nostalgist } from 'nostalgist';
 interface UseEmulatorAudioProps {
     nostalgistRef: MutableRefObject<Nostalgist | null>;
     initialVolume?: number;
+    /**
+     * Called once, the moment RetroArch's AudioContext first connects to the
+     * speakers and koin's monkey-patched GainNode is created. The GainNode
+     * does not exist at emulator start — only after the game emits its
+     * first sample — so netplay's audio tap (getAudioStream) uses this to
+     * know exactly when it becomes available instead of polling.
+     */
+    onGainNodeReady?: (gainNode: GainNode) => void;
 }
 
 interface UseEmulatorAudioReturn {
@@ -11,9 +19,15 @@ interface UseEmulatorAudioReturn {
     isMuted: boolean;
     setVolume: (volume: number) => void;
     toggleMute: () => void;
+    /**
+     * A live MediaStream of the emulator's audio output, tapped off the same
+     * GainNode the volume slider controls. Returns null until that GainNode
+     * exists (see onGainNodeReady) — the game must have made its first sound.
+     */
+    getAudioStream: () => MediaStream | null;
 }
 
-export function useEmulatorAudio({ nostalgistRef, initialVolume = 100 }: UseEmulatorAudioProps): UseEmulatorAudioReturn {
+export function useEmulatorAudio({ nostalgistRef, initialVolume = 100, onGainNodeReady }: UseEmulatorAudioProps): UseEmulatorAudioReturn {
     const [volume, setVolume] = useState(initialVolume);
     const [isMuted, setIsMuted] = useState(false);
 
@@ -21,6 +35,15 @@ export function useEmulatorAudio({ nostalgistRef, initialVolume = 100 }: UseEmul
     // We monkey-patch AudioNode.connect to inject a GainNode before the destination
     const gainNodeRef = useRef<GainNode | null>(null);
     const lastVolumeRef = useRef(initialVolume);
+    const audioStreamRef = useRef<MediaStream | null>(null);
+
+    // Read via ref rather than an effect dependency so the connect() patch
+    // below (installed once on mount) always calls the *latest* callback
+    // without needing to reinstall the monkey-patch when it changes identity.
+    const onGainNodeReadyRef = useRef(onGainNodeReady);
+    useEffect(() => {
+        onGainNodeReadyRef.current = onGainNodeReady;
+    }, [onGainNodeReady]);
 
     useEffect(() => {
         // Store original connect method
@@ -49,6 +72,7 @@ export function useEmulatorAudio({ nostalgistRef, initialVolume = 100 }: UseEmul
                         gainNodeRef.current = newGainNode;
                         gainNode = newGainNode;
                         console.log('[Nostalgist] AudioContext intercepted and GainNode injected');
+                        onGainNodeReadyRef.current?.(newGainNode);
                     }
 
                     // Connect this node to the GainNode instead of destination
@@ -136,10 +160,32 @@ export function useEmulatorAudio({ nostalgistRef, initialVolume = 100 }: UseEmul
         }
     }, [nostalgistRef]);
 
+    // A second destination downstream of the same GainNode the slider
+    // already controls. This doesn't disturb the speaker path above — the
+    // patched connect() only special-cases connections to ctx.destination
+    // itself, so this extra fan-out is invisible to it. Implemented inline
+    // (rather than imported from netplay/media/audio-tap.ts, which documents
+    // the same few lines) so this core hook — part of the main bundle —
+    // never pulls in netplay code merely because this feature exists.
+    const getAudioStream = useCallback((): MediaStream | null => {
+        const gainNode = gainNodeRef.current;
+        if (!gainNode) return null;
+        if (!audioStreamRef.current) {
+            // createMediaStreamDestination is AudioContext-only (not on the
+            // BaseAudioContext supertype, which also covers OfflineAudioContext)
+            // — the emulator's context is always a live AudioContext.
+            const destination = (gainNode.context as AudioContext).createMediaStreamDestination();
+            gainNode.connect(destination);
+            audioStreamRef.current = destination.stream;
+        }
+        return audioStreamRef.current;
+    }, []);
+
     return {
         volume,
         isMuted,
         setVolume: setVolumeLevel,
-        toggleMute
+        toggleMute,
+        getAudioStream,
     };
 }
