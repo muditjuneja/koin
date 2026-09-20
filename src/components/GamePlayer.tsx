@@ -1,6 +1,7 @@
 'use client';
 
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
 import PlayerControls from './PlayerControls';
 import ToastContainer from './Overlays/ToastContainer';
 import PerformanceOverlay from './Overlays/PerformanceOverlay';
@@ -188,14 +189,16 @@ const GamePlayerInner = memo(function GamePlayerInner(
     }, [status, isPerformanceMode]);
 
     // Sync volume from persistence on load
+    const hasSyncedVolume = useRef(false);
     useEffect(() => {
-        if (settingsLoaded) {
+        if (settingsLoaded && !hasSyncedVolume.current) {
+            hasSyncedVolume.current = true;
             setVolume(settings.volume);
             if (muted !== settings.muted) toggleMute();
         }
-    }, [settingsLoaded]); // Run once when loaded
+    }, [settingsLoaded, settings.volume, settings.muted, muted, setVolume, toggleMute]);
 
-    const { system, systemColor = '#00FF41', onExit } = props;
+    const { system, systemColor = '#00FF41', onExit, onScreenshotCaptured, onShaderChange } = props;
 
     // -- Memoized Handlers --
 
@@ -205,10 +208,10 @@ const GamePlayerInner = memo(function GamePlayerInner(
 
     const handleScreenshot = useCallback(async () => {
         const result = await screenshot();
-        if (result && props.onScreenshotCaptured) {
-            props.onScreenshotCaptured(result);
+        if (result && onScreenshotCaptured) {
+            onScreenshotCaptured(result);
         }
-    }, [screenshot, props.onScreenshotCaptured]);
+    }, [screenshot, onScreenshotCaptured]);
 
     const handleShowControls = useCallback(() => {
         pause();
@@ -257,10 +260,11 @@ const GamePlayerInner = memo(function GamePlayerInner(
 
     const handleShaderChange = useCallback((newShader: string, requiresRestart: boolean) => {
         updateSettings({ shader: newShader as any });
-        if (props.onShaderChange) {
-            props.onShaderChange(newShader, requiresRestart);
+        if (onShaderChange) {
+            onShaderChange(newShader, requiresRestart);
         }
-    }, [updateSettings, props.onShaderChange]);
+    }, [updateSettings, onShaderChange]);
+
 
     const handleTogglePerformanceOverlay = useCallback(() => {
         updateSettings({ showPerformanceOverlay: !settings.showPerformanceOverlay });

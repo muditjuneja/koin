@@ -30,6 +30,8 @@ export function useAutoSave({
 
     // Trigger to restart the auto-save loop
     const [loopTrigger, setLoopTrigger] = useState(0);
+    const hasOnAutoSave = Boolean(onAutoSave);
+    const nostalgistStatus = nostalgist?.status;
 
     useEffect(() => {
         const currentNostalgist = nostalgist;
@@ -97,7 +99,8 @@ export function useAutoSave({
             clearInterval(progressId);
             clearTimeout(saveTimeoutId);
         };
-    }, [nostalgist?.status, autoSavePaused, !!onAutoSave, loopTrigger, autoSaveInterval]);
+    }, [nostalgist, nostalgistStatus, autoSavePaused, onAutoSave, hasOnAutoSave, loopTrigger, autoSaveInterval, queueRef]);
+
 
     const handleAutoSaveToggle = useCallback(() => {
         setAutoSavePaused(prev => !prev);
@@ -148,7 +151,8 @@ export function useAutoSave({
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-    }, [nostalgist?.status, onAutoSave, nostalgist]);
+    }, [nostalgist, nostalgistStatus, onAutoSave, queueRef]);
+
 
     return {
         autoSaveEnabled: !!onAutoSave,

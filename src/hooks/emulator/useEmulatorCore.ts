@@ -333,7 +333,8 @@ export function useEmulatorCore({
                 : new Error(errorMessage);
             onError?.(reportedError);
         }
-    }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, initialVolume, onError, retroAchievements]);
+    }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, initialVolume, onError, retroAchievements, romFileName, romId, shader]);
+
 
     // Start the emulator (must be called after prepare, ideally from user click)
     const start = useCallback(async () => {
@@ -541,7 +542,8 @@ export function useEmulatorCore({
             console.error('[Nostalgist] Screenshot error:', err);
             return null;
         }
-    }, []);
+    }, [getCanvasElement]);
+
 
     // Resize canvas using Nostalgist's resize API
     const resize = useCallback((size: { width: number; height: number }) => {

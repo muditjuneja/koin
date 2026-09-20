@@ -43,7 +43,8 @@ export function useEmulatorCheats({
         // 1. Free previous pointers
         if (module._free && allocatedPointersRef.current.length > 0) {
             allocatedPointersRef.current.forEach(ptr => {
-                try { module._free(ptr); } catch (e) { /* ignore */ }
+                try { module._free(ptr); } catch { /* ignore */ }
+
             });
             allocatedPointersRef.current = [];
         }

@@ -63,7 +63,8 @@ export function useGameSaves({
         } finally {
             setIsSlotLoading(false);
         }
-    }, [onGetSaveSlots, showToast]);
+    }, [onGetSaveSlots, showToast, t]);
+
 
     // Handlers
     const handleSave = async () => {

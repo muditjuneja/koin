@@ -25,11 +25,11 @@ export function useVolume({
     const [volume, setVolumeState] = useState(() => loadVolume());
     const [isMuted, setIsMutedState] = useState(() => loadMuteState());
 
-    // Sync hook's internal volume state with our state on mount and when volume changes
     useEffect(() => {
         // Initialize hook's volume to match our loaded volume
         setVolumeInHook(volume);
-    }, [setVolumeInHook]); // Sync when hook function is available
+    }, [setVolumeInHook, volume]);
+
 
     const setVolume = useCallback((newVolume: number) => {
         const clampedVolume = Math.max(0, Math.min(100, newVolume));

@@ -23,10 +23,10 @@ export default function AutoSaveIndicator({
     onClick,
 }: AutoSaveIndicatorProps) {
     // Track previous state for smooth transitions
-
-    // Track previous state for smooth transitions
     const prevStateRef = useRef<AutoSaveState>(state);
     const [displayProgress, setDisplayProgress] = useState(progress);
+    const displayProgressRef = useRef(displayProgress);
+    displayProgressRef.current = displayProgress;
     const [iconOpacity, setIconOpacity] = useState(1);
 
     // Smooth progress animation when transitioning between states
@@ -35,7 +35,7 @@ export default function AutoSaveIndicator({
 
         if (state === 'done' && prevState === 'saving') {
             // Animate progress to 100% smoothly when saving completes
-            const startProgress = displayProgress;
+            const startProgress = displayProgressRef.current;
             const targetProgress = 100;
             const duration = 300; // ms
             const startTime = Date.now();
@@ -58,7 +58,7 @@ export default function AutoSaveIndicator({
             requestAnimationFrame(animate);
         } else if (state === 'counting' && prevState === 'done') {
             // Smoothly reset progress from 100% to 0% when restarting
-            const startProgress = displayProgress;
+            const startProgress = displayProgressRef.current;
             const targetProgress = 0;
             const duration = 200; // ms - faster reset
             const startTime = Date.now();

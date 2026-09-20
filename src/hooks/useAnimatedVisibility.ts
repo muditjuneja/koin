@@ -40,6 +40,15 @@ export function useAnimatedVisibility({
         });
     }, []);
 
+    const triggerExit = useCallback(() => {
+        if (isExiting) return; // Prevent double-exit
+
+        setIsExiting(true);
+        setTimeout(() => {
+            onExit?.();
+        }, exitDuration);
+    }, [isExiting, exitDuration, onExit]);
+
     // Auto-dismiss timer
     useEffect(() => {
         if (!autoDismissMs) return;
@@ -49,16 +58,8 @@ export function useAnimatedVisibility({
         }, autoDismissMs);
 
         return () => clearTimeout(timer);
-    }, [autoDismissMs]);
+    }, [autoDismissMs, triggerExit]);
 
-    const triggerExit = useCallback(() => {
-        if (isExiting) return; // Prevent double-exit
-
-        setIsExiting(true);
-        setTimeout(() => {
-            onExit?.();
-        }, exitDuration);
-    }, [isExiting, exitDuration, onExit]);
 
     // Common transition classes for slide-in-right pattern
     const slideInRightClasses = isVisible && !isExiting

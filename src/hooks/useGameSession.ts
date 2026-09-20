@@ -177,7 +177,8 @@ export function useGameSession(props: UseGameSessionProps) {
 
         const rafId = requestAnimationFrame(checkAndPrepare);
         return () => cancelAnimationFrame(rafId);
-    }, [romUrl, system, status, prepare]);
+    }, [romUrl, system, status, prepare, canvasRef]);
+
 
     // Soft restart: reload gamepad bindings and seamlessly restart emulator
     const reloadGamepadBindings = useCallback(async () => {

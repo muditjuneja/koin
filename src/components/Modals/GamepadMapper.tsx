@@ -59,8 +59,8 @@ export default function GamepadMapper({
             }
             setBindings(loadedBindings);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
+
 
     // Select first connected gamepad's player when modal opens or gamepads change
     useEffect(() => {
