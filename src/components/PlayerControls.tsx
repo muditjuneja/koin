@@ -31,6 +31,7 @@ const PlayerControls = memo(function PlayerControls({
     loadDisabled = false,
     saveDisabled = false,
     hardcoreRestrictions,
+    coopRestrictions,
     raConnected = false,
     raGameFound = false,
     raAchievementCount = 0,
@@ -76,6 +77,7 @@ const PlayerControls = memo(function PlayerControls({
                 disabled={disabled}
                 systemColor={systemColor}
                 hardcoreRestrictions={hardcoreRestrictions}
+                coopRestrictions={coopRestrictions}
             />
 
             {/* Divider visible only within the drawer (when not in desktop bar) */}
@@ -118,6 +120,7 @@ const PlayerControls = memo(function PlayerControls({
                 systemColor={systemColor}
                 gamepadCount={gamepadCount}
                 hardcoreRestrictions={hardcoreRestrictions}
+                coopRestrictions={coopRestrictions}
                 raConnected={raConnected}
                 raGameFound={raGameFound}
                 raAchievementCount={raAchievementCount}

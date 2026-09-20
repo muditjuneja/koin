@@ -28,6 +28,7 @@ export const en: KoinTranslations = {
     },
     common: {
         disabledInHardcore: 'Disabled in Hardcore mode',
+        disabledDuringCoop: 'Disabled during co-op — would end the session for everyone',
         notSupported: 'Not supported on this console',
         playToEnableRewind: 'Play for a few seconds to enable rewind',
     },

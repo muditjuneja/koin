@@ -62,6 +62,20 @@ const GamePlayerInner = memo(function GamePlayerInner(
     // Use props.shader if provided, otherwise persistent shader
     const effectiveShader = props.shader !== undefined ? props.shader : settings.shader;
 
+    // Co-op session-killer blocking (netplay plan §7). Computed inline
+    // rather than imported from netplay/session/coop-restrictions.ts so this
+    // core component — part of the main bundle — never pulls in netplay
+    // code merely because this prop exists (same reasoning as
+    // useEmulatorAudio.ts's getAudioStream).
+    const isCoopActive = !!props.isCoopActive;
+    const coopRestrictions = useMemo(() => ({
+        isCoopActive,
+        canChangeShader: !isCoopActive,
+        canManualRestart: !isCoopActive,
+        canOpenControlsModal: !isCoopActive,
+        canOpenGamepadModal: !isCoopActive,
+    }), [isCoopActive]);
+
     const {
         // Refs
         containerRef,
@@ -487,6 +501,7 @@ const GamePlayerInner = memo(function GamePlayerInner(
                             onVolumeChange={handleVolumeChange} // Wrapped
                             onToggleMute={handleToggleMute} // Wrapped
                             hardcoreRestrictions={hardcoreRestrictions}
+                            coopRestrictions={coopRestrictions}
                             raConnected={!!props.raUser}
                             raGameFound={!!props.raGame}
                             raAchievementCount={props.raAchievements?.length}

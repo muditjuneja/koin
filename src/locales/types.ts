@@ -26,6 +26,7 @@ export interface KoinTranslations {
     };
     common: {
         disabledInHardcore: string;
+        disabledDuringCoop: string;
         notSupported: string;
         playToEnableRewind: string;
     };

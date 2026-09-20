@@ -29,6 +29,9 @@ interface PlaybackControlsProps {
         canUseRewind?: boolean;
         isHardcore?: boolean;
     };
+    coopRestrictions?: {
+        canManualRestart?: boolean;
+    };
 }
 
 export const PlaybackControls = memo(function PlaybackControls({
@@ -49,9 +52,11 @@ export const PlaybackControls = memo(function PlaybackControls({
     disabled = false,
     systemColor = '#00FF41',
     hardcoreRestrictions,
+    coopRestrictions,
 }: PlaybackControlsProps) {
     const t = useKoinTranslation();
     const hasRewindHistory = rewindBufferSize > 0;
+    const restartBlocked = coopRestrictions?.canManualRestart === false;
 
     return (
         <div className="flex flex-wrap items-center justify-center gap-4 w-full sm:w-auto sm:flex-nowrap sm:gap-3 flex-shrink-0">
@@ -63,13 +68,16 @@ export const PlaybackControls = memo(function PlaybackControls({
                 disabled={disabled}
                 systemColor={systemColor}
             />
-            <ControlButton
-                onClick={onRestart}
-                icon={RotateCcw}
-                label={t.controls.reset}
-                disabled={disabled}
-                systemColor={systemColor}
-            />
+            <div className="relative group">
+                <ControlButton
+                    onClick={restartBlocked ? undefined : onRestart}
+                    icon={RotateCcw}
+                    label={t.controls.reset}
+                    disabled={disabled || restartBlocked}
+                    systemColor={systemColor}
+                />
+                <HardcoreTooltip show={restartBlocked} message={t.common.disabledDuringCoop} />
+            </div>
 
             {/* Speed Control */}
             <SpeedMenu speed={speed} onSpeedChange={onSpeedChange} disabled={disabled} />

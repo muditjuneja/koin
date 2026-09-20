@@ -4,6 +4,10 @@ import { ShaderPresetId } from '../lib/shader-presets';
 import { KeyboardMapping, DEFAULT_KEYBOARD } from '../lib/controls';
 import { RACredentials, RAGameExtended, RAAchievement } from '../lib/retroachievements';
 import { KoinTranslations, RecursivePartial } from '../locales/types';
+// Type-only — erased at compile time, so referencing it here doesn't pull
+// netplay's runtime code into the main bundle (see netplay/media/audio-tap.ts
+// for the same reasoning applied to a runtime import).
+import type { CoopRestrictions } from '../netplay/session/coop-restrictions';
 
 export interface SaveSlot {
     slot: number;
@@ -91,6 +95,16 @@ export interface GamePlayerProps {
 
     // Internationalization
     translations?: RecursivePartial<KoinTranslations>;
+
+    /**
+     * True while a netplay co-op session has any guest connected. Blocks
+     * shader changes, manual restart, and opening the controls/gamepad
+     * modals — each one would restart the emulator and end the session for
+     * every connected guest (see the netplay plan's §7). Purely a signal:
+     * koin has no netplay session management of its own here, the
+     * integrating app (e.g. koin.js/netplay's host UI) owns computing this.
+     */
+    isCoopActive?: boolean;
 }
 
 export interface PlayerControlsProps {
@@ -115,6 +129,8 @@ export interface PlayerControlsProps {
     disabled?: boolean;
     // Hardcore mode restrictions
     hardcoreRestrictions?: RAHardcodeRestrictions;
+    // Co-op session restrictions (see GamePlayerProps.isCoopActive)
+    coopRestrictions?: CoopRestrictions;
     raConnected?: boolean;
     raGameFound?: boolean;
     raAchievementCount?: number;
