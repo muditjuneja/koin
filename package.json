@@ -16,6 +16,11 @@
             "import": "./dist/systems.mjs",
             "require": "./dist/systems.js"
         },
+        "./netplay": {
+            "types": "./dist/netplay.d.ts",
+            "import": "./dist/netplay.mjs",
+            "require": "./dist/netplay.js"
+        },
         "./styles.css": "./dist/styles.css"
     },
     "files": [

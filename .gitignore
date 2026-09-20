@@ -32,3 +32,6 @@ coverage/
 
 # Claude Code local tooling (agent worktrees, etc.)
 .claude/
+
+# Cloudflare Workers local dev state (server/cloudflare)
+.wrangler/

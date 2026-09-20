@@ -77,6 +77,15 @@ class RetroGamePlayerElement extends HTMLElement {
         this.render();
     }
 
+    // Netplay co-op signal — a JS property since it may grow into a richer
+    // config object as koin.js/netplay's own props surface expands, matching
+    // the cheats/retroAchievementsConfig convention rather than an HTML
+    // attribute. `el.netplayConfig = { isCoopActive: true }`.
+    set netplayConfig(config: { isCoopActive?: GamePlayerProps['isCoopActive'] } | undefined) {
+        this._props.isCoopActive = config?.isCoopActive;
+        this.render();
+    }
+
     private getProps(): GamePlayerProps {
         const romUrl = this.getAttribute('rom-url') || '';
         const system = this.getAttribute('system') || 'nes';
