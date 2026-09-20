@@ -34,9 +34,9 @@ export function useAutoSave({
     const nostalgistStatus = nostalgist?.status;
 
     useEffect(() => {
-        const currentNostalgist = nostalgist;
+        const currentNostalgist = nostalgistRef.current;
 
-        if (!onAutoSave || !currentNostalgist || currentNostalgist.status !== 'running' || autoSavePaused) {
+        if (!hasOnAutoSave || !currentNostalgist || nostalgistStatus !== 'running' || autoSavePaused) {
             setAutoSaveState('idle');
             setAutoSaveProgress(0);
             return;
@@ -99,7 +99,7 @@ export function useAutoSave({
             clearInterval(progressId);
             clearTimeout(saveTimeoutId);
         };
-    }, [nostalgist, nostalgistStatus, autoSavePaused, onAutoSave, hasOnAutoSave, loopTrigger, autoSaveInterval, queueRef]);
+    }, [nostalgistStatus, autoSavePaused, hasOnAutoSave, loopTrigger, autoSaveInterval, queueRef]);
 
 
     const handleAutoSaveToggle = useCallback(() => {
@@ -108,22 +108,26 @@ export function useAutoSave({
 
     // Emergency Save Logic (Visibility Change & Unload)
     useEffect(() => {
-        if (!onAutoSave || !nostalgist || nostalgist.status !== 'running') return;
+        if (!hasOnAutoSave || nostalgistStatus !== 'running') return;
 
         const performEmergencySave = async () => {
             try {
+                const activeNostalgist = nostalgistRef.current;
+                const activeOnAutoSave = onAutoSaveRef.current;
+                if (!activeNostalgist || !activeOnAutoSave) return;
+
                 await queueRef.current.add(async () => {
-                    const result = await nostalgist.saveStateWithBlob();
+                    const result = await activeNostalgist.saveStateWithBlob();
                     if (result) {
                         let screen: string | undefined;
                         try {
-                            const screenshotData = await nostalgist.screenshot();
+                            const screenshotData = await activeNostalgist.screenshot();
                             if (screenshotData) screen = screenshotData;
                         } catch (e) {
                             console.warn('Failed to take screenshot for emergency save', e);
                         }
 
-                        await onAutoSave(result.blob, screen);
+                        await activeOnAutoSave(result.blob, screen);
                         console.log('[GamePlayer] Emergency saved');
                     }
                 });
@@ -151,7 +155,9 @@ export function useAutoSave({
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-    }, [nostalgist, nostalgistStatus, onAutoSave, queueRef]);
+    }, [nostalgistStatus, hasOnAutoSave, queueRef]);
+
+
 
 
     return {

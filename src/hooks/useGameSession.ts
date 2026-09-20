@@ -98,6 +98,8 @@ export function useGameSession(props: UseGameSessionProps) {
         return undefined;
     }, [retroAchievementsConfig, raUser?.username, raUser?.connectToken]);
 
+    const getCanvasElement = useCallback(() => canvasRef.current, [canvasRef]);
+
     // Emulator state
     const nostalgist = useNostalgist({
         system,
@@ -107,8 +109,9 @@ export function useGameSession(props: UseGameSessionProps) {
         core,
         biosUrl,
         initialState: initialSaveState,
-        getCanvasElement: () => canvasRef.current,
+        getCanvasElement,
         keyboardControls: controls,
+
         gamepadBindings: gamepadBindings.length > 0 ? gamepadBindings : undefined,
         retroAchievements: resolvedRetroAchievementsConfig,
         shader: props.shader,

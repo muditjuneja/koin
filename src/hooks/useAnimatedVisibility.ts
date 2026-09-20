@@ -3,7 +3,7 @@
  * Used by popups, toasts, and other elements that need smooth in/out animations
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface UseAnimatedVisibilityOptions {
     /** Duration in ms before calling onExit after triggerExit (default: 200) */
@@ -33,6 +33,12 @@ export function useAnimatedVisibility({
     const [isVisible, setIsVisible] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
 
+    // Keep latest onExit callback in ref so inline functions do not trigger timer restarts
+    const onExitRef = useRef(onExit);
+    useEffect(() => {
+        onExitRef.current = onExit;
+    }, [onExit]);
+
     // Animate in on mount
     useEffect(() => {
         requestAnimationFrame(() => {
@@ -45,9 +51,10 @@ export function useAnimatedVisibility({
 
         setIsExiting(true);
         setTimeout(() => {
-            onExit?.();
+            onExitRef.current?.();
         }, exitDuration);
-    }, [isExiting, exitDuration, onExit]);
+    }, [isExiting, exitDuration]);
+
 
     // Auto-dismiss timer
     useEffect(() => {
