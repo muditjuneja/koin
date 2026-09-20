@@ -38,7 +38,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:dist": "vitest run tests/exports.test.ts tests/server-safety.test.ts",
-        "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:dist && npm run size",
+        "verify": "npm run lint && npm run typecheck && npm run build && npm test && npm run test:dist && npm run size",
         "size": "size-limit",
         "postinstall": "node -e \"if (require('fs').existsSync('node_modules/nostalgist')) require('child_process').execSync('npx patch-package', {stdio: 'inherit'})\""
     },
