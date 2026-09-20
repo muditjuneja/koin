@@ -84,6 +84,8 @@
         "vitest": "^5.0.1"
     },
     "optionalDependencies": {
-        "@rolldown/binding-darwin-arm64": "^1.2.9"
+        "@rolldown/binding-darwin-arm64": "^1.2.9",
+        "@rolldown/binding-linux-x64-gnu": "^1.2.9",
+        "@rolldown/binding-wasm32-wasi": "^1.2.9"
     }
 }
