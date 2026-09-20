@@ -3,6 +3,7 @@ import { Nostalgist } from 'nostalgist';
 import {
     KeyboardMapping,
     GamepadMapping,
+    PlayerIndex,
 } from '../lib/controls';
 import { PERFORMANCE_TIER_2_SYSTEMS } from '../lib/systems';
 import { useEmulatorCore } from './emulator/useEmulatorCore';
@@ -25,6 +26,7 @@ interface UseNostalgistOptions {
     getCanvasElement?: () => HTMLCanvasElement | null; // Function to get canvas element (must be in DOM before prepare)
     keyboardControls?: KeyboardMapping; // Custom keyboard mappings
     gamepadBindings?: GamepadMapping[]; // Custom gamepad mappings per player
+    netplaySlots?: PlayerIndex[]; // Guest player slots needing synthetic input-injection bindings
     retroAchievements?: RetroAchievementsConfig;
     onReady?: () => void;
     onError?: (error: Error) => void;
@@ -74,8 +76,10 @@ export interface UseNostalgistReturn {
     // Utils
     screenshot: () => Promise<string | null>;
     pressKey: (key: string) => void;
-    pressDown: (button: string) => void;
-    pressUp: (button: string) => void;
+    // `player` defaults to 1; pass 2-4 to inject input for a netplay guest
+    // slot (requires that slot to have a synthetic binding — see netplaySlots).
+    pressDown: (button: string, player?: PlayerIndex) => void;
+    pressUp: (button: string, player?: PlayerIndex) => void;
     resize: (size: { width: number; height: number }) => void;
 
     // Cheats - low-level injection API
@@ -96,6 +100,7 @@ export const useNostalgist = ({
     getCanvasElement,
     keyboardControls,
     gamepadBindings,
+    netplaySlots,
     retroAchievements,
     onReady,
     onError,
@@ -143,6 +148,7 @@ export const useNostalgist = ({
         getCanvasElement,
         keyboardControls,
         gamepadBindings,
+        netplaySlots,
         retroAchievements,
         initialVolume,
         romFileName,

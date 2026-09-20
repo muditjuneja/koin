@@ -5,6 +5,7 @@ import { PERFORMANCE_TIER_1_SYSTEMS, PERFORMANCE_TIER_2_SYSTEMS } from '../../li
 import {
     KeyboardMapping,
     GamepadMapping,
+    PlayerIndex,
     buildRetroArchConfig
 } from '../../lib/controls';
 import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig, CustomCoreSource } from './types';
@@ -23,6 +24,13 @@ interface UseEmulatorCoreProps {
     getCanvasElement?: () => HTMLCanvasElement | null;
     keyboardControls?: KeyboardMapping;
     gamepadBindings?: GamepadMapping[];
+    /**
+     * Player slots (2-4) that should get a synthetic keyboard binding for
+     * netplay guest input injection — see lib/controls/synthetic-keys.ts.
+     * Has no effect on players with a real keyboard/gamepad binding already
+     * configured via keyboardControls/gamepadBindings.
+     */
+    netplaySlots?: PlayerIndex[];
     retroAchievements?: RetroAchievementsConfig;
     initialVolume?: number;
     romFileName?: string;
@@ -64,6 +72,7 @@ export function useEmulatorCore({
     getCanvasElement,
     keyboardControls,
     gamepadBindings,
+    netplaySlots,
     retroAchievements,
     initialVolume = 100,
     romFileName,
@@ -206,6 +215,7 @@ export function useEmulatorCore({
             const inputConfig = buildRetroArchConfig({
                 keyboard: keyboardControls,
                 gamepads: gamepadBindings,
+                netplaySlots,
             });
 
             // 2. Get optimized config based on system tier
@@ -333,7 +343,7 @@ export function useEmulatorCore({
                 : new Error(errorMessage);
             onError?.(reportedError);
         }
-    }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, initialVolume, onError, retroAchievements]);
+    }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, netplaySlots, initialVolume, onError, retroAchievements]);
 
     // Start the emulator (must be called after prepare, ideally from user click)
     const start = useCallback(async () => {

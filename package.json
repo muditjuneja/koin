@@ -34,6 +34,8 @@
         "build:element": "tsup --config tsup.element.config.ts",
         "dev": "tsup --watch",
         "lint": "eslint src",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "postinstall": "node -e \"if (require('fs').existsSync('node_modules/nostalgist')) require('child_process').execSync('npx patch-package', {stdio: 'inherit'})\""
     },
     "keywords": [
@@ -60,12 +62,14 @@
         "tailwind-merge": "^2.0.0"
     },
     "devDependencies": {
+        "@types/node": "^22.0.0",
         "@types/react": "^18.0.0",
         "@types/react-dom": "^18.0.0",
         "autoprefixer": "^10.0.0",
         "postcss": "^8.0.0",
         "tailwindcss": "^3.0.0",
         "tsup": "^8.0.0",
-        "typescript": "^5.0.0"
+        "typescript": "^5.0.0",
+        "vitest": "^5.0.1"
     }
 }

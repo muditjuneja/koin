@@ -70,3 +70,11 @@ export {
     gamepadToRetroArchConfig,
     buildRetroArchConfig,
 } from './retroarch';
+
+// Netplay: synthetic per-player keyboard allocation
+export {
+    allocateSyntheticKeyboardMappings,
+    RESERVED_HOTKEY_RA_NAMES,
+    UNRESOLVABLE_RA_NAMES,
+} from './synthetic-keys';
+export type { SyntheticKeyboardAllocation } from './synthetic-keys';
