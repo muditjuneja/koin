@@ -13,6 +13,16 @@ import { getCachedRom, fetchAndCacheRom } from '../../lib/rom-cache';
 import { getSystem } from '../../lib/systems';
 import { describeRomLoadError } from '../../lib/game-player-utils';
 
+/**
+ * Builds the Error to forward to onError, given the friendlier message
+ * already computed for the on-screen overlay. Only re-wraps when the
+ * message actually changed, so the original Error identity/stack is
+ * preserved otherwise.
+ */
+function toReportedError(err: unknown, friendlyMessage: string): Error {
+    if (!(err instanceof Error)) return new Error(friendlyMessage);
+    return err.message === friendlyMessage ? err : Object.assign(new Error(friendlyMessage), { cause: err });
+}
 
 interface UseEmulatorCoreProps {
     system: string;
@@ -336,12 +346,8 @@ export function useEmulatorCore({
             setStatus('error');
             // Forward the friendlier message to onError too — not just the on-screen
             // overlay — since consumers commonly surface err.message in their own
-            // toasts/logging. Only re-wrap when the message actually changed, so the
-            // original Error identity/stack is preserved otherwise.
-            const reportedError = err instanceof Error
-                ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
-                : new Error(errorMessage);
-            onError?.(reportedError);
+            // toasts/logging.
+            onError?.(toReportedError(err, errorMessage));
         }
     }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, netplaySlots, initialVolume, onError, retroAchievements]);
 
@@ -388,10 +394,7 @@ export function useEmulatorCore({
             console.error('[Nostalgist] Start error:', err);
             setError(errorMessage);
             setStatus('error');
-            const reportedError = err instanceof Error
-                ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
-                : new Error(errorMessage);
-            onError?.(reportedError);
+            onError?.(toReportedError(err, errorMessage));
         } finally {
             isStartingRef.current = false;
         }

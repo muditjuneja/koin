@@ -39,8 +39,14 @@ export class SignalingRoom implements DurableObject {
             return new Response('expected a WebSocket upgrade', { status: 426 });
         }
 
-        const existingPeers = this.ctx.getWebSockets().length;
-        if (existingPeers >= MAX_PEERS_PER_ROOM) {
+        // Exclude this peer's own (stale) sockets from the capacity count —
+        // a reconnecting peer inside the guest reconnect window must not be
+        // rejected as "room full" just because their old socket hasn't been
+        // cleaned up yet. Checking tags directly, rather than closing the
+        // stale socket first and recounting, since close() isn't guaranteed
+        // to synchronously remove it from getWebSockets().
+        const otherPeers = this.ctx.getWebSockets().filter((socket) => !this.ctx.getTags(socket).includes(peerId)).length;
+        if (otherPeers >= MAX_PEERS_PER_ROOM) {
             return new Response('room is full', { status: 409 });
         }
 
