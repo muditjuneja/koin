@@ -105,53 +105,62 @@ export function useGameCheats({
         };
 
         setManualCheatsInternal((prev) => [...prev, newCheat]);
-        setActiveCheats((prev) => {
-            const next = new Set(prev);
-            next.add(newCheat.id);
 
-            const cheatsToInject = allCheats
-                .filter(c => next.has(c.id) && c.id !== newCheat.id)
-                .concat([newCheat])
-                .map(c => ({ code: c.code }));
-            nostalgist.injectCheats(cheatsToInject);
+        // Compute the new set up front and pass a plain value to setState —
+        // not an updater function — since the side effects below (injecting
+        // cheats into the core, showing a toast) must run exactly once.
+        // React StrictMode invokes updater functions twice in dev, which
+        // would double-fire those side effects.
+        const next = new Set(activeCheats);
+        next.add(newCheat.id);
+        setActiveCheats(next);
 
-            return next;
-        });
+        const cheatsToInject = allCheats
+            .filter(c => next.has(c.id) && c.id !== newCheat.id)
+            .concat([newCheat])
+            .map(c => ({ code: c.code }));
+        nostalgist.injectCheats(cheatsToInject);
+
         setCheatsModalOpen(false);
         nostalgist.resume();
         showToastRef.current?.('Cheat added!', 'success');
-    }, [nostalgist, allCheats]);
+    }, [nostalgist, allCheats, activeCheats]);
 
     const handleToggleCheat = useCallback((cheatId: string) => {
         if (!nostalgist) return;
 
-        setActiveCheats((prev) => {
-            const newActiveCheats = new Set(prev);
-            const isActive = newActiveCheats.has(cheatId);
+        // See handleAddManualCheat: compute the new set and pass a plain
+        // value to setState so the side effects below run exactly once,
+        // even under React StrictMode's double-invoked updater functions.
+        const newActiveCheats = new Set(activeCheats);
+        const isActive = newActiveCheats.has(cheatId);
 
-            if (isActive) {
-                newActiveCheats.delete(cheatId);
-                showToastRef.current?.('Cheat Disabled');
-            } else {
-                newActiveCheats.add(cheatId);
-                showToastRef.current?.('Cheat Enabled', 'success');
+        if (isActive) {
+            newActiveCheats.delete(cheatId);
+        } else {
+            newActiveCheats.add(cheatId);
+        }
+
+        setActiveCheats(newActiveCheats);
+
+        if (isActive) {
+            showToastRef.current?.('Cheat Disabled');
+        } else {
+            showToastRef.current?.('Cheat Enabled', 'success');
+        }
+
+        if (onToggleCheatRef.current) {
+            const numericId = cheatId.startsWith('db-') ? parseInt(cheatId.slice(3), 10) : undefined;
+            if (numericId !== undefined) {
+                onToggleCheatRef.current(numericId, !isActive);
             }
+        }
 
-            if (onToggleCheatRef.current) {
-                const numericId = cheatId.startsWith('db-') ? parseInt(cheatId.slice(3), 10) : undefined;
-                if (numericId !== undefined) {
-                    onToggleCheatRef.current(numericId, !isActive);
-                }
-            }
-
-            const cheatsToInject = allCheats
-                .filter(c => newActiveCheats.has(c.id))
-                .map(c => ({ code: c.code }));
-            nostalgist.injectCheats(cheatsToInject);
-
-            return newActiveCheats;
-        });
-    }, [nostalgist, allCheats]);
+        const cheatsToInject = allCheats
+            .filter(c => newActiveCheats.has(c.id))
+            .map(c => ({ code: c.code }));
+        nostalgist.injectCheats(cheatsToInject);
+    }, [nostalgist, allCheats, activeCheats]);
 
     return {
         cheatsModalOpen,

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useGameCheats } from '../../src/hooks/useGameCheats';
@@ -268,5 +269,48 @@ describe('useGameCheats hook', () => {
         });
 
         expect(onToggleCheat).toHaveBeenCalledWith(7, true);
+    });
+
+    // -----------------------------------------------------------------------
+    // StrictMode: side effects in handleToggleCheat / handleAddManualCheat
+    // must not double-fire when React double-invokes state updaters.
+    // -----------------------------------------------------------------------
+    it('under StrictMode, handleToggleCheat calls onToggleCheat and injectCheats exactly once', () => {
+        const nostalgist = makeMockNostalgist();
+        const onToggleCheat = vi.fn();
+        const cheats = [makeExternalCheat(7, 'CODE0007', 'Speed Boost')];
+
+        const { result } = renderHook(
+            () => useGameCheats({ nostalgist, cheats, onToggleCheat, romId: 'rom-strict' }),
+            { wrapper: React.StrictMode }
+        );
+
+        nostalgist.injectCheats.mockClear();
+
+        act(() => {
+            result.current.handleToggleCheat('db-7');
+        });
+
+        expect(onToggleCheat).toHaveBeenCalledTimes(1);
+        expect(onToggleCheat).toHaveBeenCalledWith(7, true);
+        expect(nostalgist.injectCheats).toHaveBeenCalledTimes(1);
+    });
+
+    it('under StrictMode, handleAddManualCheat calls injectCheats and showToast exactly once', async () => {
+        const nostalgist = makeMockNostalgist();
+        const showToast = vi.fn();
+
+        const { result } = renderHook(
+            () => useGameCheats({ nostalgist, cheats: [], showToast, romId: 'rom-strict-add' }),
+            { wrapper: React.StrictMode }
+        );
+
+        await act(async () => {
+            result.current.handleAddManualCheat('99999999', 'Invincibility');
+        });
+
+        expect(nostalgist.injectCheats).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith('Cheat added!', 'success');
     });
 });

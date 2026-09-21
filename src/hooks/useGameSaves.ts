@@ -224,7 +224,11 @@ export function useGameSaves({
 
     const handleSlotDelete = useCallback(async (slot: number) => {
         if (!onDeleteSaveState) return;
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm('Are you sure you want to delete this save?')) return;
+
+        // Refuse to delete (rather than silently skip confirmation) when
+        // window.confirm isn't available — e.g. SSR or a sandboxed host.
+        if (typeof window === 'undefined' || typeof window.confirm !== 'function') return;
+        if (!window.confirm('Are you sure you want to delete this save?')) return;
 
         setActioningSlot(slot);
         try {
