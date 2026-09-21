@@ -81,8 +81,25 @@ export function useEmulatorCore({
     const nostalgistRef = useRef<Nostalgist | null>(null);
     const isStartingRef = useRef(false); // Prevent double start
 
+    // Keep callbacks in refs so caller inline functions do not invalidate prepare, start, or screenshot callbacks
+    const getCanvasElementRef = useRef(getCanvasElement);
+    useEffect(() => {
+        getCanvasElementRef.current = getCanvasElement;
+    }, [getCanvasElement]);
+
+    const onErrorRef = useRef(onError);
+    useEffect(() => {
+        onErrorRef.current = onError;
+    }, [onError]);
+
+    const onReadyRef = useRef(onReady);
+    useEffect(() => {
+        onReadyRef.current = onReady;
+    }, [onReady]);
+
     // Prepare the emulator (load files without starting)
     const prepare = useCallback(async () => {
+
         if (!romUrl || !system) {
             console.warn('[Nostalgist] Missing romUrl or system');
             return;
@@ -224,8 +241,9 @@ export function useEmulatorCore({
             // Formula: dB = 20 * Math.log10(volume / 100)
             const volumeDb = initialVolume === 0 ? -80 : 20 * Math.log10(initialVolume / 100);
 
-            // Get canvas element at prepare time (not hook initialization time)
-            const canvasElement = getCanvasElement?.() || '';
+            // Note: element can be selector string or HTMLCanvasElement
+            const canvasElement = getCanvasElementRef.current?.() || '';
+
 
 
 
@@ -331,9 +349,11 @@ export function useEmulatorCore({
             const reportedError = err instanceof Error
                 ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
                 : new Error(errorMessage);
-            onError?.(reportedError);
+            onErrorRef.current?.(reportedError);
         }
-    }, [system, romUrl, coreOverride, biosUrl, initialState, getCanvasElement, keyboardControls, gamepadBindings, initialVolume, onError, retroAchievements]);
+    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, initialVolume, retroAchievements, romFileName, romId, shader]);
+
+
 
     // Start the emulator (must be called after prepare, ideally from user click)
     const start = useCallback(async () => {
@@ -370,7 +390,7 @@ export function useEmulatorCore({
             setStatus('running');
             setIsPaused(false);
 
-            onReady?.();
+            onReadyRef.current?.();
         } catch (err) {
             const errorMessage = err instanceof Error
                 ? describeRomLoadError(err, romUrl)
@@ -381,11 +401,11 @@ export function useEmulatorCore({
             const reportedError = err instanceof Error
                 ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
                 : new Error(errorMessage);
-            onError?.(reportedError);
+            onErrorRef.current?.(reportedError);
         } finally {
             isStartingRef.current = false;
         }
-    }, [prepare, onReady, onError, romUrl]);
+    }, [prepare, romUrl]);
 
     // Stop the emulator
     const stop = useCallback(() => {
@@ -528,7 +548,7 @@ export function useEmulatorCore({
             // Fallback: Try to get canvas directly
             const canvas =
                 nostalgistRef.current.getCanvas?.() ||
-                getCanvasElement?.() ||
+                getCanvasElementRef.current?.() ||
                 document.querySelector('.game-canvas-container canvas') as HTMLCanvasElement ||
                 document.querySelector('canvas') as HTMLCanvasElement;
 
@@ -542,6 +562,8 @@ export function useEmulatorCore({
             return null;
         }
     }, []);
+
+
 
     // Resize canvas using Nostalgist's resize API
     const resize = useCallback((size: { width: number; height: number }) => {

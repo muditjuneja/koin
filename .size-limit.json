@@ -1,0 +1,14 @@
+[
+  {
+    "name": "koin.js (ESM)",
+    "path": "dist/index.mjs",
+    "limit": "450 kB",
+    "brotli": false
+  },
+  {
+    "name": "koin.js/systems (ESM)",
+    "path": "dist/systems.mjs",
+    "limit": "20 kB",
+    "brotli": false
+  }
+]

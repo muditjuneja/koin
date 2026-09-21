@@ -14,15 +14,15 @@ export const sendTelemetry = (eventName: string, params: Record<string, any> = {
                 event_name: eventName,
                 params: {
                     ...params,
-                    url: window.location.href,
-                    referrer: document.referrer,
+                    url: typeof window !== 'undefined' ? window.location?.href : '',
+                    referrer: typeof document !== 'undefined' ? document.referrer : '',
                     timestamp: new Date().toISOString()
                 }
             })
         }).catch(() => {
             // Ignore telemetry errors
         });
-    } catch (e) {
+    } catch {
         // Ignore
     }
 };

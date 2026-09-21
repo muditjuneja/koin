@@ -3,7 +3,7 @@
  * Used by popups, toasts, and other elements that need smooth in/out animations
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface UseAnimatedVisibilityOptions {
     /** Duration in ms before calling onExit after triggerExit (default: 200) */
@@ -33,32 +33,49 @@ export function useAnimatedVisibility({
     const [isVisible, setIsVisible] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
 
+    // Keep latest onExit callback in ref so inline functions do not trigger timer restarts
+    const onExitRef = useRef(onExit);
+    useEffect(() => {
+        onExitRef.current = onExit;
+    }, [onExit]);
+
+    const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        };
+    }, []);
+
     // Animate in on mount
     useEffect(() => {
-        requestAnimationFrame(() => {
+        const rafId = requestAnimationFrame(() => {
             setIsVisible(true);
         });
+        return () => cancelAnimationFrame(rafId);
     }, []);
+
+    const triggerExit = useCallback(() => {
+        if (isExiting) return; // Prevent double-exit
+
+        setIsExiting(true);
+        if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = setTimeout(() => {
+            onExitRef.current?.();
+        }, exitDuration);
+    }, [isExiting, exitDuration]);
+
 
     // Auto-dismiss timer
     useEffect(() => {
-        if (!autoDismissMs) return;
+        if (!autoDismissMs || isExiting) return;
 
         const timer = setTimeout(() => {
             triggerExit();
         }, autoDismissMs);
 
         return () => clearTimeout(timer);
-    }, [autoDismissMs]);
+    }, [autoDismissMs, triggerExit, isExiting]);
 
-    const triggerExit = useCallback(() => {
-        if (isExiting) return; // Prevent double-exit
-
-        setIsExiting(true);
-        setTimeout(() => {
-            onExit?.();
-        }, exitDuration);
-    }, [isExiting, exitDuration, onExit]);
 
     // Common transition classes for slide-in-right pattern
     const slideInRightClasses = isVisible && !isExiting

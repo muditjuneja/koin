@@ -93,13 +93,11 @@ export function useEmulatorSaves({ nostalgistRef, isPaused, setIsPaused, setStat
         }
 
         const MAX_BUFFER_SIZE = 60; // Keep last 30 seconds at 2 saves/sec
-        let captureAttempts = 0;
         let successfulCaptures = 0;
 
         rewindCaptureIntervalRef.current = setInterval(async () => {
             if (!nostalgistRef.current || isPaused) return;
 
-            captureAttempts++;
             // Scheduler handles all FS serialization - no try/catch needed for FS errors
             const state = await saveState();
             if (state) {
@@ -121,7 +119,8 @@ export function useEmulatorSaves({ nostalgistRef, isPaused, setIsPaused, setStat
             }
             // If state is null, scheduler either dropped it (backpressure) or failed - that's fine
         }, 500); // Capture every 500ms
-    }, [isPaused, saveState, nostalgistRef]);
+    }, [isPaused, saveState, nostalgistRef, rewindEnabled]);
+
 
     // Stop capturing rewind buffer
     const stopRewindCapture = useCallback(() => {
@@ -202,10 +201,11 @@ export function useEmulatorSaves({ nostalgistRef, isPaused, setIsPaused, setStat
                         // Invalid state, stop rewinding
                         stopRewind();
                     }
-                } catch (err) {
+                } catch {
                     isLoadingState = false;
                     // Silently handle errors (likely FS issues when switching states fast)
                 }
+
             }, 200); // Load state every 200ms for smoother rewind
         } catch (err) {
             console.error('[Nostalgist] Start rewind error:', err);
@@ -214,11 +214,16 @@ export function useEmulatorSaves({ nostalgistRef, isPaused, setIsPaused, setStat
         }
     }, [isRewinding, loadState, stopRewindCapture, startRewindCapture, stopRewind, nostalgistRef]);
 
+    const saveSchedulerRef = useRef(saveScheduler);
+    useEffect(() => {
+        saveSchedulerRef.current = saveScheduler;
+    }, [saveScheduler]);
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
             // Clear save queue
-            saveScheduler.clearQueue();
+            saveSchedulerRef.current.clearQueue();
 
             // Clean up rewind intervals
             if (rewindIntervalRef.current) {
@@ -233,7 +238,8 @@ export function useEmulatorSaves({ nostalgistRef, isPaused, setIsPaused, setStat
             // Clear rewind buffer
             rewindBufferRef.current = [];
         };
-    }, [saveScheduler]);
+    }, []);
+
 
     // Expose startRewindCapture to be called when emulator starts
     // We can't export it directly because it's used internally, but we can trigger it via effect if needed

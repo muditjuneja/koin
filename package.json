@@ -1,6 +1,6 @@
 {
     "name": "koin.js",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "The drop-in React component for browser-based retro game emulation. 28 systems. Cloud saves. Zero backend required.",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
@@ -30,10 +30,16 @@
     },
     "style": "dist/styles.css",
     "scripts": {
-        "build": "tsup && tailwindcss -i ./src/styles.css -o ./dist/styles.css",
+        "build": "tsup && tailwindcss -i ./src/styles.css -o ./dist/styles.css && npm run build:element",
         "build:element": "tsup --config tsup.element.config.ts",
         "dev": "tsup --watch",
         "lint": "eslint src",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:dist": "vitest run tests/exports.test.ts tests/server-safety.test.ts",
+        "verify": "npm run lint && npm run typecheck && npm run build && npm test && npm run test:dist && npm run size",
+        "size": "size-limit",
         "postinstall": "node -e \"if (require('fs').existsSync('node_modules/nostalgist')) require('child_process').execSync('npx patch-package', {stdio: 'inherit'})\""
     },
     "keywords": [
@@ -60,12 +66,26 @@
         "tailwind-merge": "^2.0.0"
     },
     "devDependencies": {
+        "@size-limit/preset-big-lib": "^11.2.0",
+        "@testing-library/react": "^16.3.3",
         "@types/react": "^18.0.0",
         "@types/react-dom": "^18.0.0",
+        "@typescript-eslint/eslint-plugin": "^8.70.0",
+        "@typescript-eslint/parser": "^8.70.0",
         "autoprefixer": "^10.0.0",
+        "eslint": "^10.11.0",
+        "eslint-plugin-react-hooks": "^7.1.1",
+        "jsdom": "^29.1.1",
         "postcss": "^8.0.0",
+        "size-limit": "^11.2.0",
         "tailwindcss": "^3.0.0",
         "tsup": "^8.0.0",
-        "typescript": "^5.0.0"
+        "typescript": "^5.0.0",
+        "vitest": "^5.0.1"
+    },
+    "optionalDependencies": {
+        "@rolldown/binding-darwin-arm64": "^1.2.9",
+        "@rolldown/binding-linux-x64-gnu": "^1.2.9",
+        "@rolldown/binding-wasm32-wasi": "^1.2.9"
     }
 }

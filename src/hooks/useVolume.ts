@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+
 import { loadVolume, saveVolume, loadMuteState, saveMuteState } from '../lib/game-player-utils';
 
 export interface UseVolumeOptions {
@@ -24,28 +25,32 @@ export function useVolume({
 }: UseVolumeOptions): UseVolumeReturn {
     const [volume, setVolumeState] = useState(() => loadVolume());
     const [isMuted, setIsMutedState] = useState(() => loadMuteState());
+    const lastSyncedVolumeRef = useRef<number | null>(null);
 
-    // Sync hook's internal volume state with our state on mount and when volume changes
     useEffect(() => {
         // Initialize hook's volume to match our loaded volume
-        setVolumeInHook(volume);
-    }, [setVolumeInHook]); // Sync when hook function is available
+        if (lastSyncedVolumeRef.current !== volume) {
+            lastSyncedVolumeRef.current = volume;
+            setVolumeInHook(volume);
+        }
+    }, [setVolumeInHook, volume]);
 
     const setVolume = useCallback((newVolume: number) => {
         const clampedVolume = Math.max(0, Math.min(100, newVolume));
+        lastSyncedVolumeRef.current = clampedVolume;
         setVolumeState(clampedVolume);
         saveVolume(clampedVolume);
         setVolumeInHook(clampedVolume);
     }, [setVolumeInHook]);
 
+
     const toggleMute = useCallback(() => {
         setIsMutedState(prev => {
             const newMuted = !prev;
             saveMuteState(newMuted);
-            // Schedule side effect AFTER state update completes
-            setTimeout(() => toggleMuteInHook(), 0);
             return newMuted;
         });
+        toggleMuteInHook();
     }, [toggleMuteInHook]);
 
     return {

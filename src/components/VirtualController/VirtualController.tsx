@@ -46,7 +46,11 @@ export interface VirtualControllerProps {
  * Virtual gamepad controller for mobile devices
  * Renders console-specific button layouts and handles touch input
  */
+// System buttons that work with tap (press + release)
+const SYSTEM_BUTTONS = ['start', 'select', 'menu'];
+
 export default function VirtualController({
+
   system,
   isRunning,
   controls,
@@ -185,10 +189,8 @@ export default function VirtualController({
     [controls]
   );
 
-  // System buttons that work with tap (press + release)
-  const SYSTEM_BUTTONS = ['start', 'select', 'menu'];
-
   // Handle system buttons (start/select) - tap to press and release
+
   const handlePress = useCallback(
     (buttonType: string) => {
       // System buttons work as long as emulator exists

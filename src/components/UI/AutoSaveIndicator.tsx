@@ -23,19 +23,20 @@ export default function AutoSaveIndicator({
     onClick,
 }: AutoSaveIndicatorProps) {
     // Track previous state for smooth transitions
-
-    // Track previous state for smooth transitions
     const prevStateRef = useRef<AutoSaveState>(state);
     const [displayProgress, setDisplayProgress] = useState(progress);
+    const displayProgressRef = useRef(displayProgress);
+    displayProgressRef.current = displayProgress;
     const [iconOpacity, setIconOpacity] = useState(1);
 
     // Smooth progress animation when transitioning between states
     useEffect(() => {
+        let rafId: number | null = null;
         const prevState = prevStateRef.current;
 
         if (state === 'done' && prevState === 'saving') {
             // Animate progress to 100% smoothly when saving completes
-            const startProgress = displayProgress;
+            const startProgress = displayProgressRef.current;
             const targetProgress = 100;
             const duration = 300; // ms
             const startTime = Date.now();
@@ -49,16 +50,16 @@ export default function AutoSaveIndicator({
                 setDisplayProgress(currentProgress);
 
                 if (progressRatio < 1) {
-                    requestAnimationFrame(animate);
+                    rafId = requestAnimationFrame(animate);
                 } else {
                     setDisplayProgress(targetProgress);
                 }
             };
 
-            requestAnimationFrame(animate);
+            rafId = requestAnimationFrame(animate);
         } else if (state === 'counting' && prevState === 'done') {
             // Smoothly reset progress from 100% to 0% when restarting
-            const startProgress = displayProgress;
+            const startProgress = displayProgressRef.current;
             const targetProgress = 0;
             const duration = 200; // ms - faster reset
             const startTime = Date.now();
@@ -72,19 +73,25 @@ export default function AutoSaveIndicator({
                 setDisplayProgress(currentProgress);
 
                 if (progressRatio < 1) {
-                    requestAnimationFrame(animate);
+                    rafId = requestAnimationFrame(animate);
                 } else {
                     setDisplayProgress(targetProgress);
                 }
             };
 
-            requestAnimationFrame(animate);
+            rafId = requestAnimationFrame(animate);
         } else if (state !== 'done') {
             // For other state changes, update progress immediately but smoothly
             setDisplayProgress(progress);
         }
 
         prevStateRef.current = state;
+
+        return () => {
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+            }
+        };
     }, [state, progress]); // Removed displayProgress from deps to avoid loops
 
     // Smooth icon transitions with fade
