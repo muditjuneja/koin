@@ -30,5 +30,12 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# E2E (Playwright)
+tests/e2e/.dist/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Claude Code local tooling (agent worktrees, etc.)
 .claude/
