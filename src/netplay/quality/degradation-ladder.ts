@@ -1,151 +1,122 @@
 /**
- * Run-Ahead / CPU-budget degradation ladder (plan §5).
+ * What the host sends to each peer, and how it backs off under CPU pressure.
  *
- * Run-Ahead costs (N+1)x emulation and runs concurrently with per-peer
- * encoding (confirmed per-sender, not shared — spike 1a/1b in the plan), so
- * a full 4-player + spectators session on a mid-range host needs an
- * explicit shedding order rather than hoping it fits. The plan's stated
- * priority: shed encode cost before Run-Ahead, since Run-Ahead buys ~16ms
- * of latency per frame for a fraction of what a second encode stream
- * costs. Ladder, in order:
- *   1. Drop spectator quality (15fps / 400kbps floor)
- *   2. Drop player framerate 60 -> 30
- *   3. Reduce Run-Ahead 2 -> 1 frame
- *   4. Disable Run-Ahead
- *   5. Refuse additional peers
+ * Every step changes only things that can change mid-session without a
+ * restart — per-sender resolution scale, frame rate and bitrate, and whether
+ * new peers are accepted. (Run-Ahead is fixed at emulator start, so it is not
+ * a runtime knob.) Encoding is per peer, so spectators are shed first, then
+ * players' frame rate, then their resolution, then new joins.
+ *
+ * The pressure signal is the host page's own frame pacing: the emulator runs
+ * on requestAnimationFrame, so when emulation plus encoding overruns the CPU,
+ * frame intervals stretch. Samples are per-second aggregates, and samples
+ * from a hidden tab (where the browser throttles rAF on purpose) must not be
+ * fed in.
  */
 
-export type DegradationStep = 0 | 1 | 2 | 3 | 4 | 5;
-
-export const MIN_DEGRADATION_STEP: DegradationStep = 0;
-export const MAX_DEGRADATION_STEP: DegradationStep = 5;
-
-export const DEGRADATION_STEP_NAMES: Record<DegradationStep, string> = {
-    0: 'none',
-    1: 'spectator-quality-reduced',
-    2: 'player-fps-reduced',
-    3: 'run-ahead-reduced',
-    4: 'run-ahead-disabled',
-    5: 'refuse-new-peers',
-};
-
-export interface DegradationConfig {
-    step: DegradationStep;
-    spectatorFps: number;
-    spectatorBitrateBps: number;
-    playerFps: number;
-    /** 0 = disabled. */
-    runAheadFrames: number;
-    refuseNewPeers: boolean;
+export interface EncodingProfile {
+    /** Encoded height cap; the host canvas is scaled down to fit. */
+    maxHeight: number;
+    maxFramerate: number;
+    maxBitrate: number;
 }
 
-// Baseline (step 0). Spectators already run a differentiated, lighter
-// profile from day one per the spike 1a/1b decision — these are that
-// baseline, not the further-reduced floor step 1 drops to.
-export const SPECTATOR_FPS_NORMAL = 24;
-export const SPECTATOR_BITRATE_NORMAL_BPS = 600_000;
-// The plan's explicit step-1 floor.
-export const SPECTATOR_FPS_DEGRADED = 15;
-export const SPECTATOR_BITRATE_DEGRADED_BPS = 400_000;
+export interface DegradationLevel {
+    step: number;
+    players: EncodingProfile;
+    spectators: EncodingProfile;
+    acceptNewPeers: boolean;
+}
 
-export const PLAYER_FPS_NORMAL = 60;
-export const PLAYER_FPS_DEGRADED = 30;
+export const DEGRADATION_LEVELS: readonly DegradationLevel[] = [
+    { step: 0, players: { maxHeight: 480, maxFramerate: 60, maxBitrate: 2_500_000 }, spectators: { maxHeight: 360, maxFramerate: 30, maxBitrate: 800_000 }, acceptNewPeers: true },
+    { step: 1, players: { maxHeight: 480, maxFramerate: 60, maxBitrate: 2_500_000 }, spectators: { maxHeight: 240, maxFramerate: 15, maxBitrate: 400_000 }, acceptNewPeers: true },
+    { step: 2, players: { maxHeight: 480, maxFramerate: 30, maxBitrate: 1_800_000 }, spectators: { maxHeight: 240, maxFramerate: 15, maxBitrate: 400_000 }, acceptNewPeers: true },
+    { step: 3, players: { maxHeight: 360, maxFramerate: 30, maxBitrate: 1_200_000 }, spectators: { maxHeight: 240, maxFramerate: 15, maxBitrate: 300_000 }, acceptNewPeers: true },
+    { step: 4, players: { maxHeight: 360, maxFramerate: 30, maxBitrate: 1_200_000 }, spectators: { maxHeight: 240, maxFramerate: 15, maxBitrate: 300_000 }, acceptNewPeers: false },
+];
 
-// Matches koin's existing Tier-1 Run-Ahead default (useEmulatorCore.ts).
-export const RUN_AHEAD_FRAMES_NORMAL = 2;
-export const RUN_AHEAD_FRAMES_REDUCED = 1;
-export const RUN_AHEAD_FRAMES_DISABLED = 0;
+/** A relayed (TURN) connection costs the integrator per byte — cap it. */
+export const RELAYED_MAX_BITRATE = 800_000;
 
-export function getDegradationConfig(step: DegradationStep): DegradationConfig {
-    return {
-        step,
-        spectatorFps: step >= 1 ? SPECTATOR_FPS_DEGRADED : SPECTATOR_FPS_NORMAL,
-        spectatorBitrateBps: step >= 1 ? SPECTATOR_BITRATE_DEGRADED_BPS : SPECTATOR_BITRATE_NORMAL_BPS,
-        playerFps: step >= 2 ? PLAYER_FPS_DEGRADED : PLAYER_FPS_NORMAL,
-        runAheadFrames: step >= 4 ? RUN_AHEAD_FRAMES_DISABLED : step >= 3 ? RUN_AHEAD_FRAMES_REDUCED : RUN_AHEAD_FRAMES_NORMAL,
-        refuseNewPeers: step >= 5,
-    };
+export function profileFor(level: DegradationLevel, role: 'player' | 'spectator', relayed: boolean): EncodingProfile {
+    const base = role === 'player' ? level.players : level.spectators;
+    return relayed ? { ...base, maxBitrate: Math.min(base.maxBitrate, role === 'player' ? RELAYED_MAX_BITRATE : RELAYED_MAX_BITRATE / 2) } : base;
+}
+
+/** scaleResolutionDownBy that fits `sourceHeight` under `maxHeight` (never upscales). */
+export function scaleDownFor(sourceHeight: number, maxHeight: number): number {
+    return sourceHeight > maxHeight ? sourceHeight / maxHeight : 1;
 }
 
 export interface PressureThresholds {
-    /** A frame counts "over budget" past targetFrameBudgetMs * this ratio. */
-    overBudgetRatio: number;
-    /** A frame counts "comfortable" under targetFrameBudgetMs * this ratio. */
-    underBudgetRatio: number;
-    /** Consecutive over-budget frames required before escalating — a single slow frame shouldn't degrade the whole session. */
-    escalateAfterSamples: number;
-    /** Consecutive comfortable frames required before de-escalating — much slower than escalation on purpose, to avoid oscillating. */
-    deescalateAfterSamples: number;
+    /** A second is "overloaded" when its 90th-percentile frame interval exceeds budget × this. */
+    overloadedRatio: number;
+    /** A second is "comfortable" below budget × this. */
+    comfortableRatio: number;
+    /** Consecutive overloaded seconds before stepping down. */
+    escalateAfter: number;
+    /** Consecutive comfortable seconds before stepping back up — deliberately slower, so quality doesn't flap. */
+    relaxAfter: number;
 }
 
 export const DEFAULT_PRESSURE_THRESHOLDS: PressureThresholds = {
-    overBudgetRatio: 1.5,
-    underBudgetRatio: 0.7,
-    escalateAfterSamples: 5,
-    deescalateAfterSamples: 30,
+    overloadedRatio: 1.5,
+    comfortableRatio: 1.15,
+    escalateAfter: 3,
+    relaxAfter: 15,
 };
 
-/**
- * Hysteresis-based state machine driving the ladder from observed
- * frame-time samples (host emulate+encode time per frame). Deliberately
- * asymmetric: quick to react to real pressure, slow to relax — recovering
- * from step 5 back to step 0 on every brief lull would make the session's
- * quality visibly flap.
- */
-export class CpuPressureDegradationLadder {
-    private step: DegradationStep = MIN_DEGRADATION_STEP;
-    private overBudgetStreak = 0;
-    private underBudgetStreak = 0;
+export class DegradationLadder {
+    private step = 0;
+    private overloadedStreak = 0;
+    private comfortableStreak = 0;
 
     constructor(
-        private readonly targetFrameBudgetMs: number = 1000 / 60,
-        private readonly thresholds: PressureThresholds = DEFAULT_PRESSURE_THRESHOLDS
+        private readonly frameBudgetMs = 1000 / 60,
+        private readonly thresholds: PressureThresholds = DEFAULT_PRESSURE_THRESHOLDS,
     ) {}
 
-    getStep(): DegradationStep {
-        return this.step;
-    }
-
-    getConfig(): DegradationConfig {
-        return getDegradationConfig(this.step);
-    }
-
-    /** Feed one frame-time sample (ms). Returns true if the step changed. */
-    recordFrame(frameTimeMs: number): boolean {
-        const over = frameTimeMs > this.targetFrameBudgetMs * this.thresholds.overBudgetRatio;
-        const under = frameTimeMs < this.targetFrameBudgetMs * this.thresholds.underBudgetRatio;
-
-        if (over) {
-            this.overBudgetStreak++;
-            this.underBudgetStreak = 0;
-        } else if (under) {
-            this.underBudgetStreak++;
-            this.overBudgetStreak = 0;
-        } else {
-            // Neutral zone — a borderline frame resets both streaks rather
-            // than nudging either one, so it can't slowly drift a decision.
-            this.overBudgetStreak = 0;
-            this.underBudgetStreak = 0;
-        }
-
-        if (this.overBudgetStreak >= this.thresholds.escalateAfterSamples && this.step < MAX_DEGRADATION_STEP) {
-            this.step = (this.step + 1) as DegradationStep;
-            this.overBudgetStreak = 0;
-            return true;
-        }
-
-        if (this.underBudgetStreak >= this.thresholds.deescalateAfterSamples && this.step > MIN_DEGRADATION_STEP) {
-            this.step = (this.step - 1) as DegradationStep;
-            this.underBudgetStreak = 0;
-            return true;
-        }
-
-        return false;
+    get level(): DegradationLevel {
+        return DEGRADATION_LEVELS[this.step];
     }
 
     reset(): void {
-        this.step = MIN_DEGRADATION_STEP;
-        this.overBudgetStreak = 0;
-        this.underBudgetStreak = 0;
+        this.step = 0;
+        this.overloadedStreak = 0;
+        this.comfortableStreak = 0;
     }
+
+    /** Feed one second's 90th-percentile frame interval. Returns true if the level changed. */
+    sample(p90FrameIntervalMs: number): boolean {
+        if (p90FrameIntervalMs > this.frameBudgetMs * this.thresholds.overloadedRatio) {
+            this.overloadedStreak++;
+            this.comfortableStreak = 0;
+        } else if (p90FrameIntervalMs < this.frameBudgetMs * this.thresholds.comfortableRatio) {
+            this.comfortableStreak++;
+            this.overloadedStreak = 0;
+        } else {
+            this.overloadedStreak = 0;
+            this.comfortableStreak = 0;
+        }
+
+        if (this.overloadedStreak >= this.thresholds.escalateAfter && this.step < DEGRADATION_LEVELS.length - 1) {
+            this.step++;
+            this.overloadedStreak = 0;
+            return true;
+        }
+        if (this.comfortableStreak >= this.thresholds.relaxAfter && this.step > 0) {
+            this.step--;
+            this.comfortableStreak = 0;
+            return true;
+        }
+        return false;
+    }
+}
+
+/** 90th percentile of a list of frame intervals; 0 for an empty list. */
+export function p90(values: readonly number[]): number {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
 }

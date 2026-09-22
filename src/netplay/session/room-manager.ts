@@ -1,166 +1,171 @@
 /**
- * Host-side slot & spectator lifecycle (plan §3a).
+ * Host-side slot & spectator bookkeeping. Pure state — no timers, no
+ * network — so the host session drives time (`expire`) and side effects.
  *
- * Deliberately transport- and emulator-agnostic — it tracks *who occupies
- * what*, not WebRTC connections or held buttons. The host wires its events
- * to the actual side effects: onSlotAssigned drives a synthetic keyboard
- * allocation, onSlotDisconnected drives releasing that slot's held buttons
- * (see held-buttons-tracker.ts) before the slot goes into its reconnect
- * grace window.
+ * Player 1 is always the host and never appears here; guest slots are
+ * 2..maxPlayers. A guest's session token reclaims its slot on reconnect —
+ * including when the host hasn't noticed the drop yet (a phone reloading its
+ * page is usually back before the old connection times out).
  */
 
 import { PlayerIndex } from '../../lib/controls/types';
-import { generateRoomCode, generateSessionToken } from './room-code';
-
-export const GUEST_SLOTS: readonly PlayerIndex[] = [2, 3, 4];
+import { generateSessionToken } from './room-code';
 
 export type SlotStatus = 'open' | 'occupied' | 'reserved';
 
-export interface SlotState {
+/** Public view of a slot — safe to broadcast (no session token). */
+export interface SlotView {
     slot: PlayerIndex;
     status: SlotStatus;
     peerId?: string;
-    sessionToken?: string;
-    /** Only set while status === 'reserved' — epoch ms after which the slot reverts to 'open'. */
+    name?: string;
+    /** Epoch ms when a reserved slot reopens. */
     reservedUntil?: number;
 }
 
-export type JoinPlayerResult =
-    | { ok: true; slot: PlayerIndex; sessionToken: string; resumed: boolean }
-    | { ok: false; reason: 'room-full' };
-
-export type JoinSpectatorResult =
-    | { ok: true }
-    | { ok: false; reason: 'spectators-full' };
-
-export interface RoomManagerEvents {
-    onSlotAssigned?: (slot: PlayerIndex, peerId: string) => void;
-    /** Unexpected drop — the slot is now reserved for reconnectWindowMs. The host should release any buttons still held for this slot. */
-    onSlotDisconnected?: (slot: PlayerIndex) => void;
-    /** A reservation expired, or a guest explicitly left / was kicked — the slot is open again. */
-    onSlotReleased?: (slot: PlayerIndex) => void;
-    onSpectatorJoined?: (peerId: string) => void;
-    onSpectatorLeft?: (peerId: string) => void;
+interface SlotRecord extends SlotView {
+    sessionToken?: string;
 }
 
-export interface RoomManagerOptions extends RoomManagerEvents {
-    /** How long a disconnected guest's slot stays reserved before opening up. Default 30s (plan §3a). */
-    guestReconnectWindowMs?: number;
-    /** Default 3 — see plan §3a: encoding is confirmed per-peer, so each spectator has a real CPU cost. */
+export type JoinResult =
+    | { ok: true; role: 'player'; slot: PlayerIndex; sessionToken: string; resumed: boolean; replacedPeerId?: string }
+    | { ok: true; role: 'spectator'; sessionToken: string }
+    | { ok: false; reason: 'room-full' | 'spectators-full' | 'kicked' };
+
+export interface RoomManagerOptions {
+    /** Players including the host, 2-4. Default 4. */
+    maxPlayers?: 2 | 3 | 4;
+    /** How long a dropped guest's slot is held for them. Default 30 s. */
+    reconnectWindowMs?: number;
+    /** Default 3 — every spectator costs the host a full video encode. */
     maxSpectators?: number;
-    /** Injection point for tests; defaults to Date.now. */
-    now?: () => number;
-    /** Injection point for tests; defaults to Math.random via generateRoomCode. */
-    randomForRoomCode?: () => number;
 }
 
 export class RoomManager {
-    readonly roomCode: string;
-    private readonly slots: Map<PlayerIndex, SlotState>;
-    private readonly spectators = new Set<string>();
-    private readonly now: () => number;
-    private readonly guestReconnectWindowMs: number;
+    readonly guestSlots: readonly PlayerIndex[];
+    private readonly slots = new Map<PlayerIndex, SlotRecord>();
+    private readonly spectators = new Map<string, { name?: string; sessionToken: string }>();
+    private readonly kicked = new Set<string>();
+    private readonly reconnectWindowMs: number;
     private readonly maxSpectators: number;
-    private readonly events: RoomManagerEvents;
 
     constructor(options: RoomManagerOptions = {}) {
-        this.roomCode = generateRoomCode(options.randomForRoomCode);
-        this.now = options.now ?? (() => Date.now());
-        this.guestReconnectWindowMs = options.guestReconnectWindowMs ?? 30_000;
+        const maxPlayers = options.maxPlayers ?? 4;
+        this.guestSlots = ([2, 3, 4] as PlayerIndex[]).filter((slot) => slot <= maxPlayers);
+        this.reconnectWindowMs = options.reconnectWindowMs ?? 30_000;
         this.maxSpectators = options.maxSpectators ?? 3;
-        this.events = options;
-        this.slots = new Map(GUEST_SLOTS.map((slot) => [slot, { slot, status: 'open' as const }]));
+        for (const slot of this.guestSlots) this.slots.set(slot, { slot, status: 'open' });
     }
 
-    private expireStale(): void {
-        const t = this.now();
-        for (const state of this.slots.values()) {
-            if (state.status === 'reserved' && state.reservedUntil !== undefined && t >= state.reservedUntil) {
-                this.slots.set(state.slot, { slot: state.slot, status: 'open' });
-                this.events.onSlotReleased?.(state.slot);
-            }
+    getSlots(): SlotView[] {
+        return this.guestSlots.map((slot) => {
+            const { sessionToken: _token, ...view } = this.slots.get(slot)!;
+            return view;
+        });
+    }
+
+    getSpectators(): { peerId: string; name?: string }[] {
+        return [...this.spectators].map(([peerId, { name }]) => ({ peerId, name }));
+    }
+
+    /** The slot a peer currently occupies, if any. */
+    slotOf(peerId: string): PlayerIndex | undefined {
+        for (const record of this.slots.values()) {
+            if (record.status === 'occupied' && record.peerId === peerId) return record.slot;
         }
+        return undefined;
     }
 
-    getSlots(): SlotState[] {
-        this.expireStale();
-        return GUEST_SLOTS.map((slot) => ({ ...this.slots.get(slot)! }));
+    isSpectator(peerId: string): boolean {
+        return this.spectators.has(peerId);
     }
 
-    getSlot(slot: PlayerIndex): SlotState | undefined {
-        this.expireStale();
-        const state = this.slots.get(slot);
-        return state ? { ...state } : undefined;
-    }
+    join(peerId: string, role: 'player' | 'spectator', options: { sessionToken?: string; name?: string } = {}): JoinResult {
+        if (this.kicked.has(peerId)) return { ok: false, reason: 'kicked' };
+        const { sessionToken, name } = options;
 
-    get spectatorCount(): number {
-        return this.spectators.size;
+        // Same peer asking again (e.g. its join message was retried): idempotent.
+        const existingSlot = this.slotOf(peerId);
+        if (existingSlot !== undefined) {
+            const record = this.slots.get(existingSlot)!;
+            return { ok: true, role: 'player', slot: existingSlot, sessionToken: record.sessionToken!, resumed: true };
+        }
+        if (this.spectators.has(peerId)) return { ok: true, role: 'spectator', sessionToken: this.spectators.get(peerId)!.sessionToken };
+
+        if (role === 'player') {
+            if (sessionToken) {
+                for (const record of this.slots.values()) {
+                    if (record.status !== 'open' && record.sessionToken === sessionToken) {
+                        const replacedPeerId = record.status === 'occupied' && record.peerId !== peerId ? record.peerId : undefined;
+                        this.slots.set(record.slot, { slot: record.slot, status: 'occupied', peerId, name: name ?? record.name, sessionToken });
+                        return { ok: true, role: 'player', slot: record.slot, sessionToken, resumed: true, replacedPeerId };
+                    }
+                }
+            }
+            const open = this.guestSlots.find((slot) => this.slots.get(slot)!.status === 'open');
+            if (open === undefined) return { ok: false, reason: 'room-full' };
+            const token = generateSessionToken();
+            this.slots.set(open, { slot: open, status: 'occupied', peerId, name, sessionToken: token });
+            return { ok: true, role: 'player', slot: open, sessionToken: token, resumed: false };
+        }
+
+        if (this.spectators.size >= this.maxSpectators) return { ok: false, reason: 'spectators-full' };
+        const token = generateSessionToken();
+        this.spectators.set(peerId, { name, sessionToken: token });
+        return { ok: true, role: 'spectator', sessionToken: token };
     }
 
     /**
-     * A new peer wants a player slot. If it presents a sessionToken that
-     * matches a currently-reserved slot, it resumes that exact slot rather
-     * than taking a fresh one — a late reconnect inside the grace window
-     * doesn't renegotiate who is P2.
+     * The peer's connection dropped. A player's slot is held for the
+     * reconnect window; a spectator is simply removed. Returns the slot that
+     * was reserved, if any.
      */
-    joinAsPlayer(peerId: string, sessionToken?: string): JoinPlayerResult {
-        this.expireStale();
+    disconnected(peerId: string, now: number): PlayerIndex | undefined {
+        this.spectators.delete(peerId);
+        const slot = this.slotOf(peerId);
+        if (slot === undefined) return undefined;
+        const record = this.slots.get(slot)!;
+        this.slots.set(slot, { ...record, status: 'reserved', reservedUntil: now + this.reconnectWindowMs });
+        return slot;
+    }
 
-        if (sessionToken) {
-            for (const state of this.slots.values()) {
-                if (state.status === 'reserved' && state.sessionToken === sessionToken) {
-                    this.slots.set(state.slot, { slot: state.slot, status: 'occupied', peerId, sessionToken });
-                    this.events.onSlotAssigned?.(state.slot, peerId);
-                    return { ok: true, slot: state.slot, sessionToken, resumed: true };
-                }
+    /** The peer said goodbye: free its slot now, no reconnect window. */
+    left(peerId: string): PlayerIndex | undefined {
+        this.spectators.delete(peerId);
+        const slot = this.slotOf(peerId);
+        if (slot !== undefined) this.slots.set(slot, { slot, status: 'open' });
+        return slot;
+    }
+
+    /** Remove a player (by slot) or spectator (by peer id) and keep them out for the rest of the session. */
+    kick(target: PlayerIndex | string): string | undefined {
+        if (typeof target === 'string') {
+            if (!this.spectators.delete(target)) return undefined;
+            this.kicked.add(target);
+            return target;
+        }
+        const record = this.slots.get(target);
+        if (!record || record.status === 'open') return undefined;
+        if (record.peerId) this.kicked.add(record.peerId);
+        this.slots.set(target, { slot: target, status: 'open' });
+        return record.peerId;
+    }
+
+    /** Reopen reservations whose window has passed. Returns the reopened slots. */
+    expire(now: number): PlayerIndex[] {
+        const reopened: PlayerIndex[] = [];
+        for (const record of this.slots.values()) {
+            if (record.status === 'reserved' && record.reservedUntil !== undefined && now >= record.reservedUntil) {
+                this.slots.set(record.slot, { slot: record.slot, status: 'open' });
+                reopened.push(record.slot);
             }
         }
-
-        const openSlot = GUEST_SLOTS.find((slot) => this.slots.get(slot)!.status === 'open');
-        if (openSlot === undefined) return { ok: false, reason: 'room-full' };
-
-        const newToken = generateSessionToken();
-        this.slots.set(openSlot, { slot: openSlot, status: 'occupied', peerId, sessionToken: newToken });
-        this.events.onSlotAssigned?.(openSlot, peerId);
-        return { ok: true, slot: openSlot, sessionToken: newToken, resumed: false };
+        return reopened;
     }
 
-    joinAsSpectator(peerId: string): JoinSpectatorResult {
-        if (this.spectators.size >= this.maxSpectators) return { ok: false, reason: 'spectators-full' };
-        this.spectators.add(peerId);
-        this.events.onSpectatorJoined?.(peerId);
-        return { ok: true };
-    }
-
-    leaveSpectator(peerId: string): void {
-        if (this.spectators.delete(peerId)) {
-            this.events.onSpectatorLeft?.(peerId);
-        }
-    }
-
-    /** Unexpected drop (ICE failure, tab closed without a "leave") — reserve the slot rather than freeing it immediately. */
-    handleGuestDisconnected(slot: PlayerIndex): void {
-        const state = this.slots.get(slot);
-        if (!state || state.status !== 'occupied') return;
-        this.slots.set(slot, {
-            slot,
-            status: 'reserved',
-            sessionToken: state.sessionToken,
-            reservedUntil: this.now() + this.guestReconnectWindowMs,
-        });
-        this.events.onSlotDisconnected?.(slot);
-    }
-
-    /** Explicit "leave" message, or nothing to reconnect to — free the slot immediately, no grace window. */
-    handleGuestLeft(slot: PlayerIndex): void {
-        const state = this.slots.get(slot);
-        if (!state || state.status === 'open') return;
-        this.slots.set(slot, { slot, status: 'open' });
-        this.events.onSlotReleased?.(slot);
-    }
-
-    /** Host-initiated kick — same effect as a leave, freeing the slot immediately even mid-reservation. */
-    kick(slot: PlayerIndex): void {
-        this.handleGuestLeft(slot);
+    /** When the next reservation expires, so the caller can schedule `expire`. */
+    nextExpiry(): number | undefined {
+        const times = [...this.slots.values()].filter((r) => r.status === 'reserved').map((r) => r.reservedUntil!);
+        return times.length ? Math.min(...times) : undefined;
     }
 }

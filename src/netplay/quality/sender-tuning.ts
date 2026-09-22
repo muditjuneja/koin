@@ -1,69 +1,46 @@
 /**
- * Sender-side WebRTC wiring for netplay video quality (plan §4). Thin —
- * all the actual decisions live in heuristics.ts so they're unit-testable;
- * this file just calls the real browser APIs with those results.
+ * Applies codec preferences and per-peer encoding profiles to real WebRTC
+ * senders. Decisions live in heuristics.ts / degradation-ladder.ts.
  */
 
-import {
-    DIRECT_MAX_BITRATE_BPS,
-    getPreferredVideoCodecOrder,
-    pickMaxBitrate,
-    reorderCodecsByPriority,
-} from './heuristics';
+import { reorderCodecsByPriority, VIDEO_CODEC_PRIORITY } from './heuristics';
+import { EncodingProfile, scaleDownFor } from './degradation-ladder';
 
-/**
- * Reorders a video transceiver's codec preferences without dropping any
- * entry (see reorderCodecsByPriority's doc for why that matters). No-op if
- * the browser doesn't expose RTCRtpSender.getCapabilities or
- * setCodecPreferences (older Safari).
- */
-export function applyVideoCodecPreferences(transceiver: RTCRtpTransceiver, options: { allowAv1?: boolean } = {}): void {
-    if (typeof RTCRtpSender === 'undefined' || typeof RTCRtpSender.getCapabilities !== 'function') return;
+/** Put H.264, then VP8, first in the offer — keeping every other codec (RTX/RED/FEC). */
+export function applyVideoCodecPreferences(transceiver: RTCRtpTransceiver): void {
     if (typeof transceiver.setCodecPreferences !== 'function') return;
-
-    const capabilities = RTCRtpSender.getCapabilities('video');
+    // The spec validates against receiver capabilities; senders' is the fallback for older engines.
+    const capabilities = RTCRtpReceiver.getCapabilities?.('video') ?? RTCRtpSender.getCapabilities?.('video');
     if (!capabilities) return;
-
-    const order = getPreferredVideoCodecOrder(!!options.allowAv1);
-    transceiver.setCodecPreferences(reorderCodecsByPriority(capabilities.codecs, order));
-}
-
-/** Hints the encoder that this is synthetic/screen-like content (pixel art), not a camera feed — implies maintain-resolution and enables screen-content coding tools where available. */
-export function applyContentHint(track: MediaStreamTrack): void {
-    try {
-        (track as unknown as { contentHint: string }).contentHint = 'text';
-    } catch {
-        // Not supported on this track type/browser — harmless to skip.
-    }
-}
-
-export interface SenderEncodingOptions {
-    /** Whether this connection is currently relayed through TURN — downshifts the bitrate target (plan's cost model). */
-    isRelayed?: boolean;
-    degradationPreference?: RTCDegradationPreference;
+    transceiver.setCodecPreferences(reorderCodecsByPriority(capabilities.codecs, VIDEO_CODEC_PRIORITY));
 }
 
 /**
- * Applies maxBitrate + degradationPreference via setParameters(). Call again
- * whenever relay status or the degradation decision changes (see
- * heuristics.ts's decideDegradationPreference, driven by observed fps).
+ * Bound the encoded stream to the profile. The host canvas is as large as
+ * the host's window (it can be 1080p+ in fullscreen), so the encoder scales it
+ * down per peer — encode cost, the per-peer cost, stays fixed however the host
+ * sizes the game. Players favour frame rate under congestion; spectators let
+ * the encoder balance.
  */
-export async function applySenderEncodingParameters(sender: RTCRtpSender, options: SenderEncodingOptions = {}): Promise<void> {
+export async function applyEncodingProfile(
+    sender: RTCRtpSender,
+    profile: EncodingProfile,
+    sourceHeight: number,
+    role: 'player' | 'spectator',
+): Promise<void> {
     const params = sender.getParameters();
-    if (!params.encodings || params.encodings.length === 0) {
-        params.encodings = [{}];
-    }
-
-    const maxBitrate = pickMaxBitrate(!!options.isRelayed);
+    if (!params.encodings?.length) return; // not negotiated yet; called again once connected
     for (const encoding of params.encodings) {
-        encoding.maxBitrate = maxBitrate;
+        encoding.maxBitrate = profile.maxBitrate;
+        encoding.maxFramerate = profile.maxFramerate;
+        encoding.scaleResolutionDownBy = scaleDownFor(sourceHeight, profile.maxHeight);
     }
-
-    if (options.degradationPreference) {
-        params.degradationPreference = options.degradationPreference;
+    params.degradationPreference = role === 'player' ? 'maintain-framerate' : 'balanced';
+    try {
+        await sender.setParameters(params);
+    } catch (err) {
+        // Some engines reject degradationPreference; retry with just the encodings.
+        delete (params as { degradationPreference?: unknown }).degradationPreference;
+        await sender.setParameters(params).catch(() => console.warn('[netplay] could not apply encoding profile:', err));
     }
-
-    await sender.setParameters(params);
 }
-
-export { DIRECT_MAX_BITRATE_BPS };

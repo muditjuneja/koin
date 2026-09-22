@@ -4,10 +4,6 @@ import { ShaderPresetId } from '../lib/shader-presets';
 import { KeyboardMapping, DEFAULT_KEYBOARD } from '../lib/controls';
 import { RACredentials, RAGameExtended, RAAchievement } from '../lib/retroachievements';
 import { KoinTranslations, RecursivePartial } from '../locales/types';
-// Type-only — erased at compile time, so referencing it here doesn't pull
-// netplay's runtime code into the main bundle (see netplay/media/audio-tap.ts
-// for the same reasoning applied to a runtime import).
-import type { CoopRestrictions } from '../netplay/session/coop-restrictions';
 
 export interface SaveSlot {
     slot: number;
@@ -97,14 +93,13 @@ export interface GamePlayerProps {
     translations?: RecursivePartial<KoinTranslations>;
 
     /**
-     * True while a netplay co-op session has any guest connected. Blocks
-     * shader changes, manual restart, and opening the controls/gamepad
-     * modals — each one would restart the emulator and end the session for
-     * every connected guest (see the netplay plan's §7). Purely a signal:
-     * koin has no netplay session management of its own here, the
-     * integrating app (e.g. koin.js/netplay's host UI) owns computing this.
+     * Host netplay co-op: pass a session from `koin.js/netplay` (e.g.
+     * `useCoopHost`). The emulator is prepared for remote players and
+     * connected to the session while it runs; actions that would restart the
+     * emulator (shader change, reset, remapping) are blocked while guests are
+     * connected.
      */
-    isCoopActive?: boolean;
+    coop?: CoopHostBinding;
 }
 
 export interface PlayerControlsProps {
@@ -129,7 +124,7 @@ export interface PlayerControlsProps {
     disabled?: boolean;
     // Hardcore mode restrictions
     hardcoreRestrictions?: RAHardcodeRestrictions;
-    // Co-op session restrictions (see GamePlayerProps.isCoopActive)
+    // Co-op session restrictions (see GamePlayerProps.coop)
     coopRestrictions?: CoopRestrictions;
     raConnected?: boolean;
     raGameFound?: boolean;
@@ -212,4 +207,33 @@ export interface RAHardcodeRestrictions {
     canUseRewind: boolean;
     canUseCheats: boolean;
     canUseSlowMotion: boolean;
+}
+
+/** Actions blocked while co-op guests are connected — each would restart the emulator and drop them. */
+export interface CoopRestrictions {
+    isCoopActive: boolean;
+    canChangeShader: boolean;
+    canManualRestart: boolean;
+    canOpenControlsModal: boolean;
+    canOpenGamepadModal: boolean;
+}
+
+/** The running emulator, as handed to a co-op host session. */
+export interface CoopEmulatorHandle {
+    canvas: HTMLCanvasElement;
+    getEmscripten(): any;
+    getAudioStream(): MediaStream | null;
+    onAudioAvailable?(listener: () => void): () => void;
+}
+
+/**
+ * What GamePlayer needs from a co-op host session. Declared structurally here
+ * so the main bundle never imports netplay code; `CoopHostSession` from
+ * `koin.js/netplay` satisfies it.
+ */
+export interface CoopHostBinding {
+    readonly state: { guestsConnected: number };
+    subscribe(listener: (state: { guestsConnected: number }) => void): () => void;
+    attachEmulator(emulator: CoopEmulatorHandle): () => void;
+    announce?(event: 'rewind' | 'load-state' | 'speed-change' | 'paused' | 'resumed'): void;
 }

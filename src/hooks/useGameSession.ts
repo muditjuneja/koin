@@ -34,6 +34,28 @@ export function useGameSession(props: UseGameSessionProps) {
 
     const t = useKoinTranslation();
 
+    // Co-op: whether guests are connected right now, read at click time by
+    // actions that would restart the emulator (and drop them).
+    const coopActiveRef = useRef(false);
+    useEffect(() => {
+        const coop = props.coop;
+        coopActiveRef.current = (coop?.state.guestsConnected ?? 0) > 0;
+        if (!coop) return;
+        return coop.subscribe((state) => {
+            coopActiveRef.current = state.guestsConnected > 0;
+        });
+    }, [props.coop]);
+
+    // The game's audio only exists after its first sound; co-op hosting needs
+    // to know when it appears so guests can hear it.
+    const audioListenersRef = useRef(new Set<() => void>());
+    const onAudioAvailable = useCallback((listener: () => void) => {
+        audioListenersRef.current.add(listener);
+        return () => {
+            audioListenersRef.current.delete(listener);
+        };
+    }, []);
+
     // Controls management
     const { controls, saveControls } = useControls(system, showToast);
 
@@ -52,7 +74,10 @@ export function useGameSession(props: UseGameSessionProps) {
                     duration: 4000,
                     action: {
                         label: 'Configure',
-                        onClick: () => setGamepadModalOpen(true),
+                        // Saving a remap restarts the emulator, which would drop co-op guests.
+                        onClick: () => {
+                            if (!coopActiveRef.current) setGamepadModalOpen(true);
+                        },
                     },
                 }
             );
@@ -114,6 +139,8 @@ export function useGameSession(props: UseGameSessionProps) {
         keyboardControls: controls,
 
         gamepadBindings: gamepadBindings.length > 0 ? gamepadBindings : undefined,
+        coop: !!props.coop,
+        onGainNodeReady: () => audioListenersRef.current.forEach((listener) => listener()),
         retroAchievements: resolvedRetroAchievementsConfig,
         shader: props.shader,
         onReady: () => {
@@ -270,5 +297,6 @@ export function useGameSession(props: UseGameSessionProps) {
         setControlsModalOpen,
         hardcoreRestrictions,
         reloadGamepadBindings,
+        onAudioAvailable,
     };
 }

@@ -3,7 +3,12 @@ import { KoinTranslations, RecursivePartial } from '../locales/types';
 import { en } from '../locales/en';
 
 // -- Context --
-const KoinI18nContext = createContext<KoinTranslations>(en);
+// koin.js and koin.js/netplay are separate bundles that each include this
+// module. Keep one context per page so a KoinI18nProvider from either bundle
+// reaches components from both.
+const CONTEXT_KEY = Symbol.for('koin.js/i18n-context');
+const globalScope = globalThis as unknown as Record<symbol, React.Context<KoinTranslations> | undefined>;
+const KoinI18nContext = globalScope[CONTEXT_KEY] ?? (globalScope[CONTEXT_KEY] = createContext<KoinTranslations>(en));
 
 // -- Helper: Simple Deep Merge --
 function deepMerge<T extends object>(target: T, source: RecursivePartial<T>): T {

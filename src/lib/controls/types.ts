@@ -119,12 +119,4 @@ export interface ControlConfig {
     keyboard?: KeyboardMapping;
     /** Gamepad controls per player */
     gamepads?: GamepadMapping[];
-    /**
-     * Player slots (2-4) that should receive a private synthetic keyboard
-     * binding, allocated to avoid the host's own keyboard map and koin's
-     * hotkeys. Used to inject remote (netplay guest) input via
-     * `nostalgist.pressDown(button, player)` without requiring the host to
-     * have a physical keyboard/gamepad bound to that slot.
-     */
-    netplaySlots?: PlayerIndex[];
 }

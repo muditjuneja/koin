@@ -1,89 +1,166 @@
 /**
- * One RTCPeerConnection per guest (star topology — plan §3). The host holds
- * one CoopPeerConnection per connected guest/spectator; guests hold exactly
- * one, to the host. There is never a guest<->guest connection.
+ * One RTCPeerConnection between the host and one guest (star topology).
  *
- * Uses the canonical "perfect negotiation" pattern (WebRTC WG /
- * w3.org/TR/webrtc/#perfect-negotiation-example) so offer/answer glare on
- * renegotiation (e.g. an ICE restart racing a track change) resolves
- * deterministically instead of both sides guessing. The host is always the
- * impolite side and always owns creating the DataChannels — that mirrors
- * the plan's host-authoritative architecture and avoids a coin flip over
- * who initiates.
+ * Negotiation follows the WebRTC "perfect negotiation" pattern; the host is
+ * the impolite side, creates both DataChannels, and owns ICE restarts.
+ *
+ * The host adds its video and audio transceivers up front, before the first
+ * offer, and later swaps real tracks in with replaceTrack(). That avoids a
+ * renegotiation when the game's audio only appears after its first sound,
+ * puts both tracks in one MediaStream (one A/V sync group on the receiver),
+ * and lets codec preferences apply to the very first offer.
  */
 
-import { ControlMessage, decodeControlMessage, encodeControlMessage } from './protocol';
+import type { ControlMessage, SignalPayload } from './protocol';
+import { decodeControlMessage, encodeControlMessage } from './protocol';
 
 export type PeerRole = 'host' | 'guest';
 
-export type PeerSignal =
-    | { type: 'offer'; sdp: string }
-    | { type: 'answer'; sdp: string }
-    | { type: 'ice-candidate'; candidate: RTCIceCandidateInit };
+type PeerSignal = Extract<SignalPayload, { type: 'sdp' | 'ice' }>;
 
 export interface CoopPeerConnectionOptions {
     role: PeerRole;
     iceServers?: RTCIceServer[];
-    /** Send a signal to the remote side of this connection (relayed via signaling.ts). */
     onSignal: (signal: PeerSignal) => void;
     onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
-    /** Host: raw guest input bytes arrive here (see protocol.ts's decodeInputState). Guest: unused. */
-    onInputMessage?: (data: ArrayBuffer) => void;
-    onControlMessage?: (message: ControlMessage) => void;
-    /** Guest: the host's incoming media tracks arrive here. Host: unused. */
+    /** Both DataChannels are open — the connection is usable. */
+    onReady?: () => void;
+    onInput?: (data: ArrayBuffer) => void;
+    onControl?: (message: ControlMessage) => void;
     onTrack?: (event: RTCTrackEvent) => void;
+    /** Host only: called once with the video transceiver, before the first offer, to set codec preferences. */
+    configureVideoTransceiver?: (transceiver: RTCRtpTransceiver) => void;
 }
+
+/** Input is absolute state resent on a heartbeat; if the channel is backed up, skip rather than queue stale state. */
+const INPUT_BUFFER_LIMIT_BYTES = 1024;
 
 export class CoopPeerConnection {
     readonly pc: RTCPeerConnection;
     private readonly polite: boolean;
     private makingOffer = false;
     private ignoreOffer = false;
-
+    private settingRemoteAnswer = false;
+    private closed = false;
     private inputChannel: RTCDataChannel | null = null;
     private controlChannel: RTCDataChannel | null = null;
+    private videoSender: RTCRtpSender | null = null;
+    private audioSender: RTCRtpSender | null = null;
 
-    constructor(private options: CoopPeerConnectionOptions) {
-        // Host is impolite (its offers win a collision) — deterministic
-        // without needing a separate negotiation for who leads.
+    constructor(private readonly options: CoopPeerConnectionOptions) {
         this.polite = options.role === 'guest';
-
         this.pc = new RTCPeerConnection({
             iceServers: options.iceServers ?? [],
             bundlePolicy: 'max-bundle',
             iceCandidatePoolSize: 2,
         });
 
-        this.pc.onnegotiationneeded = () => {
-            void this.handleNegotiationNeeded();
-        };
-
+        this.pc.onnegotiationneeded = () => void this.negotiate();
         this.pc.onicecandidate = ({ candidate }) => {
-            if (candidate) this.options.onSignal({ type: 'ice-candidate', candidate: candidate.toJSON() });
+            if (candidate) options.onSignal({ type: 'ice', candidate: candidate.toJSON() });
         };
-
         this.pc.oniceconnectionstatechange = () => {
-            if (this.pc.iceConnectionState === 'failed') {
-                this.pc.restartIce();
-            }
+            if (this.pc.iceConnectionState === 'failed' && !this.polite) this.pc.restartIce();
         };
-
-        this.pc.onconnectionstatechange = () => {
-            this.options.onConnectionStateChange?.(this.pc.connectionState);
-        };
-
-        this.pc.ontrack = (event) => {
-            this.options.onTrack?.(event);
-        };
-
-        this.pc.ondatachannel = (event) => {
-            this.bindChannel(event.channel);
-        };
+        this.pc.onconnectionstatechange = () => options.onConnectionStateChange?.(this.pc.connectionState);
+        this.pc.ontrack = (event) => options.onTrack?.(event);
+        this.pc.ondatachannel = (event) => this.bindChannel(event.channel);
 
         if (options.role === 'host') {
-            // Host always creates both channels; the guest receives them via ondatachannel.
+            const stream = new MediaStream();
+            const video = this.pc.addTransceiver('video', { direction: 'sendonly', streams: [stream] });
+            const audio = this.pc.addTransceiver('audio', { direction: 'sendonly', streams: [stream] });
+            this.videoSender = video.sender;
+            this.audioSender = audio.sender;
+            try {
+                options.configureVideoTransceiver?.(video);
+            } catch (err) {
+                console.warn('[netplay] could not apply codec preferences:', err);
+            }
             this.bindChannel(this.pc.createDataChannel('input', { ordered: false, maxRetransmits: 0 }));
             this.bindChannel(this.pc.createDataChannel('control', { ordered: true }));
+        }
+    }
+
+    get isReady(): boolean {
+        return this.inputChannel?.readyState === 'open' && this.controlChannel?.readyState === 'open';
+    }
+
+    get senders(): { video: RTCRtpSender | null; audio: RTCRtpSender | null } {
+        return { video: this.videoSender, audio: this.audioSender };
+    }
+
+    /** Host: attach (or swap) the streamed tracks. No renegotiation. */
+    async setTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null): Promise<void> {
+        if (this.closed) return;
+        try {
+            await Promise.all([
+                this.videoSender && this.videoSender.track !== video ? this.videoSender.replaceTrack(video) : undefined,
+                this.audioSender && this.audioSender.track !== audio ? this.audioSender.replaceTrack(audio) : undefined,
+            ]);
+        } catch (err) {
+            if (!this.closed) console.warn('[netplay] replaceTrack failed:', err);
+        }
+    }
+
+    async handleSignal(signal: PeerSignal): Promise<void> {
+        if (this.closed) return;
+        try {
+            if (signal.type === 'ice') {
+                try {
+                    await this.pc.addIceCandidate(signal.candidate);
+                } catch (err) {
+                    if (!this.ignoreOffer) throw err;
+                }
+                return;
+            }
+            const description = signal.description;
+            const readyForOffer = !this.makingOffer && (this.pc.signalingState === 'stable' || this.settingRemoteAnswer);
+            const collision = description.type === 'offer' && !readyForOffer;
+            this.ignoreOffer = !this.polite && collision;
+            if (this.ignoreOffer) return;
+
+            this.settingRemoteAnswer = description.type === 'answer';
+            await this.pc.setRemoteDescription(description);
+            this.settingRemoteAnswer = false;
+            if (description.type === 'offer') {
+                await this.pc.setLocalDescription();
+                const local = this.pc.localDescription;
+                if (local) this.options.onSignal({ type: 'sdp', description: { type: local.type as 'answer', sdp: local.sdp } });
+            }
+        } catch (err) {
+            if (!this.closed) console.warn('[netplay] signaling error:', err);
+        }
+    }
+
+    sendInput(data: ArrayBuffer): void {
+        const channel = this.inputChannel;
+        if (channel?.readyState === 'open' && channel.bufferedAmount < INPUT_BUFFER_LIMIT_BYTES) channel.send(data);
+    }
+
+    sendControl(message: ControlMessage): void {
+        if (this.controlChannel?.readyState === 'open') this.controlChannel.send(encodeControlMessage(message));
+    }
+
+    close(): void {
+        if (this.closed) return;
+        this.closed = true;
+        this.inputChannel?.close();
+        this.controlChannel?.close();
+        this.pc.close();
+    }
+
+    private async negotiate(): Promise<void> {
+        if (this.closed) return;
+        try {
+            this.makingOffer = true;
+            await this.pc.setLocalDescription();
+            const local = this.pc.localDescription;
+            if (local) this.options.onSignal({ type: 'sdp', description: { type: local.type as 'offer', sdp: local.sdp } });
+        } catch (err) {
+            if (!this.closed) console.warn('[netplay] negotiation error:', err);
+        } finally {
+            this.makingOffer = false;
         }
     }
 
@@ -91,85 +168,22 @@ export class CoopPeerConnection {
         if (channel.label === 'input') {
             this.inputChannel = channel;
             channel.binaryType = 'arraybuffer';
-            channel.onmessage = (event) => this.options.onInputMessage?.(event.data as ArrayBuffer);
+            channel.onmessage = (event) => {
+                if (event.data instanceof ArrayBuffer) this.options.onInput?.(event.data);
+            };
         } else if (channel.label === 'control') {
             this.controlChannel = channel;
             channel.onmessage = (event) => {
-                try {
-                    this.options.onControlMessage?.(decodeControlMessage(event.data));
-                } catch (err) {
-                    console.error('[netplay] malformed control message:', err);
-                }
+                const message = decodeControlMessage(event.data);
+                if (message) this.options.onControl?.(message);
             };
-        }
-    }
-
-    private async handleNegotiationNeeded(): Promise<void> {
-        try {
-            this.makingOffer = true;
-            await this.pc.setLocalDescription();
-            this.options.onSignal({ type: 'offer', sdp: this.pc.localDescription!.sdp });
-        } catch (err) {
-            console.error('[netplay] negotiation error:', err);
-        } finally {
-            this.makingOffer = false;
-        }
-    }
-
-    /** Feed in a signal received from the remote peer via signaling.ts. */
-    async handleSignal(signal: PeerSignal): Promise<void> {
-        if (signal.type === 'ice-candidate') {
-            try {
-                await this.pc.addIceCandidate(signal.candidate);
-            } catch (err) {
-                if (!this.ignoreOffer) console.error('[netplay] failed to add ICE candidate:', err);
-            }
+        } else {
+            channel.close();
             return;
         }
-
-        const description: RTCSessionDescriptionInit = { type: signal.type, sdp: signal.sdp };
-        const offerCollision = description.type === 'offer'
-            && (this.makingOffer || this.pc.signalingState !== 'stable');
-
-        this.ignoreOffer = !this.polite && offerCollision;
-        if (this.ignoreOffer) return;
-
-        await this.pc.setRemoteDescription(description);
-
-        if (description.type === 'offer') {
-            await this.pc.setLocalDescription();
-            this.options.onSignal({ type: 'answer', sdp: this.pc.localDescription!.sdp });
-        }
-    }
-
-    /**
-     * Host: attach the streamed video+audio. Both tracks must share the same
-     * MediaStream object (addTrack(v, stream) + addTrack(a, stream)) — tracks
-     * registered under different stream ids land in different sync groups on
-     * the receiver (webrtc bug 5912), which is exactly the audio/video split
-     * this call exists to prevent.
-     */
-    addMediaStream(stream: MediaStream): void {
-        for (const track of stream.getTracks()) {
-            this.pc.addTrack(track, stream);
-        }
-    }
-
-    sendInput(data: ArrayBuffer): void {
-        if (this.inputChannel?.readyState === 'open') {
-            this.inputChannel.send(data);
-        }
-    }
-
-    sendControl(message: ControlMessage): void {
-        if (this.controlChannel?.readyState === 'open') {
-            this.controlChannel.send(encodeControlMessage(message));
-        }
-    }
-
-    close(): void {
-        this.inputChannel?.close();
-        this.controlChannel?.close();
-        this.pc.close();
+        channel.onopen = () => {
+            if (this.isReady) this.options.onReady?.();
+        };
+        if (this.isReady) this.options.onReady?.();
     }
 }

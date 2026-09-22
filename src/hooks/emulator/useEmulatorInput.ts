@@ -8,16 +8,8 @@ interface UseEmulatorInputProps {
 
 interface UseEmulatorInputReturn {
     pressKey: (key: string) => void;
-    /**
-     * Press and hold a button. `player` defaults to 1 (Nostalgist's own
-     * default) — pass 2-4 to inject input for a netplay guest slot, which
-     * only resolves to anything once that slot has a synthetic keyboard
-     * binding (see lib/controls/synthetic-keys.ts and buildRetroArchConfig's
-     * netplaySlots option). Without one, Nostalgist silently no-ops the
-     * press, same as it always has for players 2-4.
-     */
+    /** Press and hold a button via the player's keyboard binding. `player` defaults to 1. */
     pressDown: (button: string, player?: PlayerIndex) => void;
-    /** Release a button. See pressDown for the `player` parameter. */
     pressUp: (button: string, player?: PlayerIndex) => void;
 }
 
@@ -38,7 +30,8 @@ export function useEmulatorInput({ nostalgistRef }: UseEmulatorInputProps): UseE
         if (!nostalgistRef.current) return;
 
         try {
-            (nostalgistRef.current as any).pressDown(button, player);
+            // Nostalgist's two-argument form ignores `player`; only the object form routes it.
+            nostalgistRef.current.pressDown({ button, player });
         } catch (err) {
             console.error('[Nostalgist] Press down error:', err);
         }
@@ -49,7 +42,7 @@ export function useEmulatorInput({ nostalgistRef }: UseEmulatorInputProps): UseE
         if (!nostalgistRef.current) return;
 
         try {
-            (nostalgistRef.current as any).pressUp(button, player);
+            nostalgistRef.current.pressUp({ button, player });
         } catch (err) {
             console.error('[Nostalgist] Press up error:', err);
         }

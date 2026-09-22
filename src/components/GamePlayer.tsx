@@ -20,6 +20,7 @@ import ErrorBoundary from './UI/ErrorBoundary';
 
 import { useGamePlayer } from '../hooks/useGamePlayer';
 import { usePlayerPersistence } from '../hooks/usePlayerPersistence';
+import { useCoopHostBinding } from '../hooks/useCoopHostBinding';
 import { GamePlayerProps } from './types';
 import { KeyboardMapping } from '../lib/controls';
 import { sendTelemetry } from '../lib/telemetry';
@@ -66,19 +67,6 @@ const GamePlayerInner = memo(function GamePlayerInner(
     // Use props.shader if provided, otherwise persistent shader
     const effectiveShader = props.shader !== undefined ? props.shader : settings.shader;
 
-    // Co-op session-killer blocking (netplay plan §7). Computed inline
-    // rather than imported from netplay/session/coop-restrictions.ts so this
-    // core component — part of the main bundle — never pulls in netplay
-    // code merely because this prop exists (same reasoning as
-    // useEmulatorAudio.ts's getAudioStream).
-    const isCoopActive = !!props.isCoopActive;
-    const coopRestrictions = useMemo(() => ({
-        isCoopActive,
-        canChangeShader: !isCoopActive,
-        canManualRestart: !isCoopActive,
-        canOpenControlsModal: !isCoopActive,
-        canOpenGamepadModal: !isCoopActive,
-    }), [isCoopActive]);
 
     const {
         // Refs
@@ -102,6 +90,9 @@ const GamePlayerInner = memo(function GamePlayerInner(
         gamepads,
         connectedCount,
         reloadGamepadBindings,
+
+        // Co-op
+        onAudioAvailable,
 
         // Modals
         gamepadModalOpen,
@@ -187,6 +178,26 @@ const GamePlayerInner = memo(function GamePlayerInner(
         status,
         isPerformanceMode,
     } = nostalgist;
+
+    // Co-op hosting: connect the running emulator to the session, and block
+    // anything that would restart it while guests are connected.
+    const coopGuests = useCoopHostBinding({
+        coop: props.coop,
+        live: status === 'running' || status === 'paused',
+        getNostalgistInstance: nostalgist.getNostalgistInstance,
+        getAudioStream: nostalgist.getAudioStream,
+        onAudioAvailable,
+        isPaused,
+        isRewinding,
+    });
+    const isCoopActive = coopGuests > 0;
+    const coopRestrictions = useMemo(() => ({
+        isCoopActive,
+        canChangeShader: !isCoopActive,
+        canManualRestart: !isCoopActive,
+        canOpenControlsModal: !isCoopActive,
+        canOpenGamepadModal: !isCoopActive,
+    }), [isCoopActive]);
 
     // Auto-hide virtual controls when a physical gamepad connects, restore on disconnect
     useEffect(() => {

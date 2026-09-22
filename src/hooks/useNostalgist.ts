@@ -26,7 +26,7 @@ interface UseNostalgistOptions {
     getCanvasElement?: () => HTMLCanvasElement | null; // Function to get canvas element (must be in DOM before prepare)
     keyboardControls?: KeyboardMapping; // Custom keyboard mappings
     gamepadBindings?: GamepadMapping[]; // Custom gamepad mappings per player
-    netplaySlots?: PlayerIndex[]; // Guest player slots needing synthetic input-injection bindings
+    coop?: boolean; // Prepare to host netplay co-op (standard pad binds for P2-4, multitap)
     retroAchievements?: RetroAchievementsConfig;
     onReady?: () => void;
     onError?: (error: Error) => void;
@@ -83,8 +83,7 @@ export interface UseNostalgistReturn {
     // Utils
     screenshot: () => Promise<string | null>;
     pressKey: (key: string) => void;
-    // `player` defaults to 1; pass 2-4 to inject input for a netplay guest
-    // slot (requires that slot to have a synthetic binding — see netplaySlots).
+    // `player` defaults to 1.
     pressDown: (button: string, player?: PlayerIndex) => void;
     pressUp: (button: string, player?: PlayerIndex) => void;
     resize: (size: { width: number; height: number }) => void;
@@ -107,7 +106,7 @@ export const useNostalgist = ({
     getCanvasElement,
     keyboardControls,
     gamepadBindings,
-    netplaySlots,
+    coop,
     retroAchievements,
     onReady,
     onError,
@@ -156,7 +155,7 @@ export const useNostalgist = ({
         getCanvasElement,
         keyboardControls,
         gamepadBindings,
-        netplaySlots,
+        coop,
         retroAchievements,
         initialVolume,
         romFileName,

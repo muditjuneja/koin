@@ -5,8 +5,9 @@ import { PERFORMANCE_TIER_1_SYSTEMS, PERFORMANCE_TIER_2_SYSTEMS } from '../../li
 import {
     KeyboardMapping,
     GamepadMapping,
-    PlayerIndex,
-    buildRetroArchConfig
+    buildRetroArchConfig,
+    coopRetroArchConfig,
+    coopRemapFile,
 } from '../../lib/controls';
 import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig, CustomCoreSource } from './types';
 import { getCachedRom, fetchAndCacheRom } from '../../lib/rom-cache';
@@ -35,12 +36,11 @@ interface UseEmulatorCoreProps {
     keyboardControls?: KeyboardMapping;
     gamepadBindings?: GamepadMapping[];
     /**
-     * Player slots (2-4) that should get a synthetic keyboard binding for
-     * netplay guest input injection — see lib/controls/synthetic-keys.ts.
-     * Has no effect on players with a real keyboard/gamepad binding already
-     * configured via keyboardControls/gamepadBindings.
+     * Prepare the emulator to host netplay co-op: players 2-4 are bound to
+     * the standard gamepad layout remote guests are injected as, and the
+     * core's multitap is enabled where 4 players need one.
      */
-    netplaySlots?: PlayerIndex[];
+    coop?: boolean;
     retroAchievements?: RetroAchievementsConfig;
     initialVolume?: number;
     romFileName?: string;
@@ -82,7 +82,7 @@ export function useEmulatorCore({
     getCanvasElement,
     keyboardControls,
     gamepadBindings,
-    netplaySlots,
+    coop = false,
     retroAchievements,
     initialVolume = 100,
     romFileName,
@@ -98,6 +98,7 @@ export function useEmulatorCore({
     const [isPerformanceMode, setIsPerformanceMode] = useState(false);
 
     const nostalgistRef = useRef<Nostalgist | null>(null);
+    const getNostalgistInstance = useCallback(() => nostalgistRef.current, []);
     const isStartingRef = useRef(false); // Prevent double start
 
     // Keep callbacks in refs so caller inline functions do not invalidate prepare, start, or screenshot callbacks
@@ -239,11 +240,10 @@ export function useEmulatorCore({
             }
 
             // Build input configuration from custom controls
-            const inputConfig = buildRetroArchConfig({
-                keyboard: keyboardControls,
-                gamepads: gamepadBindings,
-                netplaySlots,
-            });
+            const inputConfig = {
+                ...buildRetroArchConfig({ keyboard: keyboardControls, gamepads: gamepadBindings }),
+                ...(coop ? coopRetroArchConfig() : {}),
+            };
 
             // 2. Get optimized config based on system tier
             const currentSystem = system;
@@ -352,6 +352,15 @@ export function useEmulatorCore({
 
             const nostalgist = await Nostalgist.prepare(prepareOptions);
 
+            // RetroArch reads per-port device types (multitap) only from remap
+            // files, so write it between prepare() and start().
+            const remap = coop ? coopRemapFile(typeof core === 'string' ? core : core.name) : null;
+            if (remap) {
+                const fs = nostalgist.getEmscriptenFS();
+                fs.mkdirTree(remap.path.slice(0, remap.path.lastIndexOf('/')));
+                fs.writeFile(remap.path, remap.contents);
+            }
+
             nostalgistRef.current = nostalgist;
 
             setStatus('ready');
@@ -367,7 +376,7 @@ export function useEmulatorCore({
             // toasts/logging.
             onErrorRef.current?.(toReportedError(err, errorMessage));
         }
-    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, netplaySlots, initialVolume, retroAchievements, romFileName, romId, shader]);
+    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, coop, initialVolume, retroAchievements, romFileName, romId, shader]);
 
     // Start the emulator (must be called after prepare, ideally from user click)
     const start = useCallback(async () => {
@@ -610,7 +619,7 @@ export function useEmulatorCore({
         setSpeed,
         screenshot,
         resize,
-        getNostalgistInstance: () => nostalgistRef.current,
+        getNostalgistInstance,
         isPerformanceMode,
     };
 }

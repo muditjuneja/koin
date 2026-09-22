@@ -1,71 +1,46 @@
 /**
- * Signaling transport for netplay (plan §3 / §8).
+ * Signaling transport: carries join/SDP/ICE messages between the host and
+ * guests until their WebRTC connections are up (and again on reconnects).
  *
- * koin never requires a backend, so this is deliberately pluggable: give a
- * `signalingUrl` to talk to koin's reference Cloudflare Worker + Durable
- * Object (or any compatible WebSocket endpoint), or give an `onSignal`
- * callback to relay messages through your own app's existing transport
- * (a REST call, a different socket, a queue — koin never opens a
- * connection itself in that mode). Exactly one of the two is required.
+ * koin needs no backend of its own. Give a `signalingUrl` for koin's
+ * reference Cloudflare Worker (server/cloudflare) or anything speaking the
+ * same protocol, or plug in your own transport with `createCallbackSignaling`.
  *
- * This module only carries opaque envelopes between peers in the same
- * room; it does not interpret them. peer.ts's SDP offers/answers/ICE
- * candidates and higher-level room events (join/roster/kick) are both
- * just payloads here.
+ * Wire protocol (JSON text frames):
+ *   client -> server  { toPeerId?: string, payload }
+ *   server -> client  { fromPeerId: string, toPeerId?: string, payload }
+ * The server stamps fromPeerId itself and only lets guests talk to "host".
  */
 
-export type SignalingState = 'connecting' | 'open' | 'closed';
+import type { SignalPayload } from './protocol';
+
+export type SignalingState = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
 export interface SignalingMessage {
-    roomCode: string;
-    /** The sending peer's id. */
     fromPeerId: string;
-    /** Omit to broadcast to everyone else currently in the room (used for host discovery / roster events). */
-    toPeerId?: string;
-    /** Opaque payload — an SDP offer/answer, an ICE candidate, or a room-level event. Never inspected here. */
-    payload: unknown;
+    payload: SignalPayload;
 }
 
-export interface SignalingClient {
+export interface SignalingTransport {
     readonly state: SignalingState;
-    send(message: SignalingMessage): void;
-    /** Register a handler for inbound messages. Returns an unsubscribe function. */
-    subscribe(handler: (message: SignalingMessage) => void): () => void;
-    /**
-     * Feed an inbound message into this client. Required when the client was
-     * constructed from an `onSignal` callback (there is no socket for koin to
-     * listen on) — the host app calls this whenever its own transport
-     * receives something for this room. WebSocket-backed clients call this
-     * internally and a caller normally never needs to.
-     */
-    receive(message: SignalingMessage): void;
+    /** Why the transport closed for good, when it did (e.g. 'peer-id-taken'). */
+    readonly closeReason: string | null;
+    send(toPeerId: string | undefined, payload: SignalPayload): void;
+    onMessage(handler: (message: SignalingMessage) => void): () => void;
+    onStateChange(handler: (state: SignalingState) => void): () => void;
     close(): void;
 }
 
-export interface CreateSignalingClientOptions {
-    roomCode: string;
-    peerId: string;
-    /** Connect over WebSocket to koin's reference signaling server or any compatible endpoint. */
-    signalingUrl?: string;
-    /** Bring your own transport instead of a WebSocket URL — see module docs. */
-    onSignal?: (message: SignalingMessage) => void;
-}
-
-abstract class BaseSignalingClient implements SignalingClient {
-    protected handlers = new Set<(message: SignalingMessage) => void>();
-    abstract readonly state: SignalingState;
-    abstract send(message: SignalingMessage): void;
-    abstract close(): void;
-
-    subscribe(handler: (message: SignalingMessage) => void): () => void {
+class Emitter<T> {
+    private handlers = new Set<(value: T) => void>();
+    on(handler: (value: T) => void): () => void {
         this.handlers.add(handler);
         return () => this.handlers.delete(handler);
     }
-
-    receive(message: SignalingMessage): void {
-        for (const handler of this.handlers) {
+    emit(value: T): void {
+        for (const handler of [...this.handlers]) {
             try {
-                handler(message);
+                handler(value);
             } catch (err) {
                 console.error('[netplay] signaling handler threw:', err);
             }
@@ -73,78 +48,190 @@ abstract class BaseSignalingClient implements SignalingClient {
     }
 }
 
-class WebSocketSignalingClient extends BaseSignalingClient {
-    private socket: WebSocket;
-    private _state: SignalingState = 'connecting';
-    private queue: SignalingMessage[] = [];
+/** Server close codes after which reconnecting cannot help. */
+const FATAL_CLOSE_CODES: Record<number, string> = {
+    4009: 'peer-id-taken',
+    4013: 'room-full',
+    4029: 'rate-limited',
+};
 
-    constructor(url: string, private roomCode: string, private peerId: string) {
-        super();
-        this.socket = new WebSocket(url);
-        this.socket.onopen = () => {
-            this._state = 'open';
-            for (const message of this.queue.splice(0)) this.socket.send(JSON.stringify(message));
+export interface WebSocketSignalingOptions {
+    /** Base URL of the signaling server, e.g. "wss://koin-signaling.example.workers.dev". http(s) is accepted too. */
+    url: string;
+    roomCode: string;
+    peerId: string;
+    /** Proves ownership of peerId across reconnects. Generate once per session. */
+    secret: string;
+    /** Messages sent while not connected are queued up to this many (oldest dropped). Default 64. */
+    maxQueue?: number;
+}
+
+export function buildSignalingUrl({ url, roomCode, peerId, secret }: Pick<WebSocketSignalingOptions, 'url' | 'roomCode' | 'peerId' | 'secret'>): string {
+    const base = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
+    if (base.protocol === 'http:') base.protocol = 'ws:';
+    if (base.protocol === 'https:') base.protocol = 'wss:';
+    if (!base.pathname.endsWith('/ws')) base.pathname = `${base.pathname.replace(/\/+$/, '')}/ws`;
+    base.searchParams.set('room', roomCode);
+    base.searchParams.set('peerId', peerId);
+    base.searchParams.set('secret', secret);
+    return base.toString();
+}
+
+export function createWebSocketSignaling(options: WebSocketSignalingOptions): SignalingTransport {
+    const url = buildSignalingUrl(options);
+    const maxQueue = options.maxQueue ?? 64;
+    const messages = new Emitter<SignalingMessage>();
+    const states = new Emitter<SignalingState>();
+    let state: SignalingState = 'connecting';
+    let closeReason: string | null = null;
+    let socket: WebSocket | null = null;
+    let queue: string[] = [];
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const setState = (next: SignalingState) => {
+        if (state === next) return;
+        state = next;
+        states.emit(next);
+    };
+
+    const connect = () => {
+        const ws = new WebSocket(url);
+        socket = ws;
+        ws.onopen = () => {
+            attempt = 0;
+            setState('open');
+            for (const frame of queue.splice(0)) ws.send(frame);
         };
-        this.socket.onmessage = (event) => {
+        ws.onmessage = (event) => {
+            if (typeof event.data !== 'string') return;
             try {
-                const message = JSON.parse(event.data) as SignalingMessage;
-                this.receive(message);
-            } catch (err) {
-                console.error('[netplay] malformed signaling message:', err);
+                const message = JSON.parse(event.data);
+                if (message && typeof message.fromPeerId === 'string' && message.payload && typeof message.payload.type === 'string') {
+                    messages.emit({ fromPeerId: message.fromPeerId, payload: message.payload });
+                }
+            } catch {
+                // not JSON — ignore
             }
         };
-        this.socket.onclose = () => {
-            this._state = 'closed';
+        ws.onclose = (event) => {
+            if (socket !== ws || state === 'closed') return;
+            socket = null;
+            const fatal = FATAL_CLOSE_CODES[event.code];
+            if (fatal) {
+                closeReason = fatal;
+                setState('closed');
+                return;
+            }
+            setState('reconnecting');
+            const delay = Math.min(5000, 250 * 2 ** attempt) * (0.75 + Math.random() * 0.5);
+            attempt++;
+            retryTimer = setTimeout(connect, delay);
         };
-        this.socket.onerror = (err) => {
-            console.error('[netplay] signaling socket error:', err);
-        };
-    }
+    };
+    connect();
 
-    get state(): SignalingState {
-        return this._state;
-    }
-
-    send(message: SignalingMessage): void {
-        const withRoom: SignalingMessage = { ...message, roomCode: this.roomCode, fromPeerId: this.peerId };
-        if (this._state === 'open') {
-            this.socket.send(JSON.stringify(withRoom));
-        } else {
-            this.queue.push(withRoom);
-        }
-    }
-
-    close(): void {
-        this._state = 'closed';
-        this.queue = [];
-        this.socket.close();
-    }
+    return {
+        get state() { return state; },
+        get closeReason() { return closeReason; },
+        send(toPeerId, payload) {
+            if (state === 'closed') return;
+            const frame = JSON.stringify({ toPeerId, payload });
+            if (state === 'open' && socket?.readyState === WebSocket.OPEN) {
+                socket.send(frame);
+                return;
+            }
+            queue.push(frame);
+            if (queue.length > maxQueue) queue = queue.slice(-maxQueue);
+        },
+        onMessage: (handler) => messages.on(handler),
+        onStateChange: (handler) => states.on(handler),
+        close() {
+            if (state === 'closed') return;
+            closeReason = 'closed';
+            setState('closed');
+            if (retryTimer) clearTimeout(retryTimer);
+            queue = [];
+            const ws = socket;
+            socket = null;
+            ws?.close(1000);
+        },
+    };
 }
 
-class CallbackSignalingClient extends BaseSignalingClient {
-    private _state: SignalingState = 'open';
-
-    constructor(private onSignal: (message: SignalingMessage) => void, private roomCode: string, private peerId: string) {
-        super();
-    }
-
-    get state(): SignalingState {
-        return this._state;
-    }
-
-    send(message: SignalingMessage): void {
-        if (this._state !== 'open') return;
-        this.onSignal({ ...message, roomCode: this.roomCode, fromPeerId: this.peerId });
-    }
-
-    close(): void {
-        this._state = 'closed';
-    }
+export interface CallbackSignalingOptions {
+    peerId: string;
+    /** Called for every outgoing message; deliver it to the peer however you like. */
+    onSend: (toPeerId: string | undefined, payload: SignalPayload) => void;
 }
 
-export function createSignalingClient(options: CreateSignalingClientOptions): SignalingClient {
-    const { roomCode, peerId, signalingUrl, onSignal } = options;
-    if (signalingUrl) return new WebSocketSignalingClient(signalingUrl, roomCode, peerId);
-    if (onSignal) return new CallbackSignalingClient(onSignal, roomCode, peerId);
-    throw new Error('createSignalingClient requires either signalingUrl or onSignal');
+/**
+ * Bring-your-own transport. koin opens no connection; call `receive()` with
+ * every message your transport delivers for this peer (including who sent
+ * it — you are responsible for that being trustworthy).
+ */
+export function createCallbackSignaling(options: CallbackSignalingOptions): SignalingTransport & { receive(message: SignalingMessage): void } {
+    const messages = new Emitter<SignalingMessage>();
+    const states = new Emitter<SignalingState>();
+    let state: SignalingState = 'open';
+    return {
+        get state() { return state; },
+        get closeReason() { return state === 'closed' ? 'closed' : null; },
+        send(toPeerId, payload) {
+            if (state === 'open') options.onSend(toPeerId, payload);
+        },
+        receive(message) {
+            if (state === 'open') messages.emit(message);
+        },
+        onMessage: (handler) => messages.on(handler),
+        onStateChange: (handler) => states.on(handler),
+        close() {
+            if (state === 'closed') return;
+            state = 'closed';
+            states.emit(state);
+        },
+    };
+}
+
+/**
+ * An in-page signaling hub with the reference server's routing rules
+ * (guests can only reach "host"; the hub stamps the sender). For demos and
+ * tests where host and guests share one page.
+ */
+export function createMemorySignalingHub() {
+    const peers = new Map<string, ReturnType<typeof createCallbackSignaling>>();
+    const deliver = (to: string, message: SignalingMessage) => peers.get(to)?.receive(message);
+    const toGuests = (message: SignalingMessage) => {
+        for (const [id, peer] of peers) if (id !== 'host') peer.receive(message);
+    };
+    return {
+        connect(peerId: string): SignalingTransport {
+            // Same peer reconnecting: retire the old transport without a peer-left.
+            const previous = peers.get(peerId);
+            if (previous) {
+                peers.delete(peerId);
+                previous.close();
+            }
+            const transport = createCallbackSignaling({
+                peerId,
+                onSend: (toPeerId, payload) => {
+                    if (peerId !== 'host') deliver('host', { fromPeerId: peerId, payload });
+                    else if (toPeerId) deliver(toPeerId, { fromPeerId: 'host', payload });
+                    else toGuests({ fromPeerId: 'host', payload });
+                },
+            });
+            peers.set(peerId, transport);
+            if (peerId === 'host') toGuests({ fromPeerId: '__system__', payload: { type: 'host-joined' } });
+            else deliver('host', { fromPeerId: '__system__', payload: { type: 'peer-joined', peerId } });
+            const close = transport.close.bind(transport);
+            transport.close = () => {
+                if (peers.get(peerId) !== transport) return close();
+                peers.delete(peerId);
+                close();
+                if (peerId === 'host') toGuests({ fromPeerId: '__system__', payload: { type: 'host-left' } });
+                else deliver('host', { fromPeerId: '__system__', payload: { type: 'peer-left', peerId } });
+            };
+            return transport;
+        },
+    };
 }

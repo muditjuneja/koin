@@ -1,35 +1,29 @@
 /**
- * Room codes and session tokens (plan §3a).
+ * Room codes and session tokens.
  *
- * Room codes are typed by a human (the fallback join path behind link/QR),
- * so the alphabet excludes visually-ambiguous characters: 0/O and I/1.
- * 6 chars from the remaining 32-symbol alphabet is 32^6 ≈ 1.07 billion
- * combinations — the plan's target — while staying short enough to read
- * off a screen and type on a phone keyboard.
+ * Room codes are typed by people (behind link/QR), so the alphabet drops the
+ * lookalikes 0/O and I/1: 32 symbols, 6 characters, ~1.07 billion codes. The
+ * alphabet size divides 256, so taking bytes mod 32 has no bias.
  */
 
-const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/I/1
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LENGTH = 6;
 
-export function generateRoomCode(random: () => number = Math.random): string {
-    let code = '';
-    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
-        code += ROOM_CODE_ALPHABET[Math.floor(random() * ROOM_CODE_ALPHABET.length)];
-    }
-    return code;
+function randomBytes(length: number): Uint8Array {
+    return crypto.getRandomValues(new Uint8Array(length));
 }
 
-/**
- * Opaque per-guest token issued at join, presented on reconnect to resume
- * the same reserved slot (plan §3a) instead of being treated as a fresh
- * joiner. Not a security boundary beyond "harder to guess than the slot
- * number" — the room code is the only access control in v1.
- */
-export function generateSessionToken(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-    }
-    // Unreachable in any browser or Node version koin targets — kept only
-    // so this never throws in an unusual embedding.
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+export function generateRoomCode(): string {
+    return Array.from(randomBytes(ROOM_CODE_LENGTH), (byte) => ROOM_CODE_ALPHABET[byte % ROOM_CODE_ALPHABET.length]).join('');
+}
+
+/** Normalizes user-typed codes (case, spaces, dashes) and returns null if it can't be a room code. */
+export function normalizeRoomCode(input: string): string | null {
+    const code = input.toUpperCase().replace(/[\s-]/g, '');
+    return code.length === ROOM_CODE_LENGTH && [...code].every((c) => ROOM_CODE_ALPHABET.includes(c)) ? code : null;
+}
+
+/** URL-safe random id: session tokens, peer ids and signaling secrets. */
+export function generateSessionToken(bytes = 18): string {
+    return btoa(String.fromCharCode(...randomBytes(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

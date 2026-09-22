@@ -35,3 +35,6 @@ coverage/
 
 # Cloudflare Workers local dev state (server/cloudflare)
 .wrangler/
+
+# Netplay e2e cache (downloaded cores, built harness, wrangler state)
+tests/e2e/.cache/

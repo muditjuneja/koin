@@ -1,12 +1,13 @@
 'use client';
 
 import { Wifi, WifiOff, Loader2, AlertTriangle } from 'lucide-react';
+import type { ConnectionQuality } from '../session/connection-quality';
 
-export type ConnectionQuality = 'connecting' | 'good' | 'fair' | 'poor' | 'reconnecting' | 'disconnected';
+export type { ConnectionQuality };
 
 export interface ConnectionIndicatorProps {
     quality: ConnectionQuality;
-    /** Glass-to-glass latency in ms, when known — the figure the netplay plan calls out as the thing to actually surface (§6). */
+    /** Estimated press-to-picture latency in ms, when known. */
     latencyMs?: number | null;
     onClick?: () => void;
 }
@@ -59,14 +60,6 @@ function getTooltip(quality: ConnectionQuality, latencyMs?: number | null): stri
     if (quality === 'connecting') return 'Connecting…';
     if (quality === 'reconnecting') return 'Reconnecting…';
     if (quality === 'disconnected') return 'Disconnected';
-    if (typeof latencyMs === 'number') return `${Math.round(latencyMs)}ms input-to-pixel latency`;
+    if (typeof latencyMs === 'number') return `~${Math.round(latencyMs)} ms from button press to picture (estimated)`;
     return 'Connected';
-}
-
-/** Pure classification, kept next to the component since it's tiny — from packetsLost/jitterBufferDelay-style signals into the discrete quality bucket the indicator renders. */
-export function classifyConnectionQuality(latencyMs: number | null, packetLossRatio: number): ConnectionQuality {
-    if (latencyMs === null) return 'connecting';
-    if (packetLossRatio > 0.1 || latencyMs > 250) return 'poor';
-    if (packetLossRatio > 0.02 || latencyMs > 120) return 'fair';
-    return 'good';
 }

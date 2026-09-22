@@ -167,10 +167,8 @@ export function useEmulatorAudio({ nostalgistRef, initialVolume = 100, onGainNod
     // A second destination downstream of the same GainNode the slider
     // already controls. This doesn't disturb the speaker path above — the
     // patched connect() only special-cases connections to ctx.destination
-    // itself, so this extra fan-out is invisible to it. Implemented inline
-    // (rather than imported from netplay/media/audio-tap.ts, which documents
-    // the same few lines) so this core hook — part of the main bundle —
-    // never pulls in netplay code merely because this feature exists.
+    // itself, so this extra fan-out is invisible to it. Co-op hosting streams
+    // this to guests; the stream is created lazily, on first request.
     const getAudioStream = useCallback((): MediaStream | null => {
         const gainNode = gainNodeRef.current;
         if (!gainNode) return null;

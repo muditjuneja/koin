@@ -1,94 +1,87 @@
 import { describe, expect, it } from 'vitest';
 import {
-    encodeInputState,
-    decodeInputState,
-    encodeControlMessage,
     decodeControlMessage,
-    INPUT_MESSAGE_BYTE_LENGTH,
-    ControlMessage,
+    decodeInputPacket,
+    encodeControlMessage,
+    encodeInputPacket,
+    INPUT_PACKET_BYTES,
+    isNewerSeq,
+    NEUTRAL_AXES,
 } from './protocol';
 import { ALL_BUTTONS, ButtonId } from '../../lib/controls/types';
 
-describe('input state encode/decode round-trip', () => {
-    it('round-trips an empty button set', () => {
-        const decoded = decodeInputState(encodeInputState({ buttons: new Set(), seq: 0, timestamp: 0 }));
-        expect(decoded.buttons.size).toBe(0);
-        expect(decoded.seq).toBe(0);
-        expect(decoded.timestamp).toBe(0);
-    });
+const packet = (buttons: ButtonId[], seq = 1, axes = NEUTRAL_AXES) => ({ buttons: new Set(buttons), seq, axes });
 
-    it('round-trips every individual button', () => {
+describe('input packets', () => {
+    it('round-trips every button on its own and all together', () => {
         for (const button of ALL_BUTTONS) {
-            const decoded = decodeInputState(encodeInputState({ buttons: new Set([button]), seq: 1, timestamp: 123.5 }));
-            expect(decoded.buttons).toEqual(new Set([button]));
+            expect(decodeInputPacket(encodeInputPacket(packet([button])))!.buttons).toEqual(new Set([button]));
         }
+        expect(decodeInputPacket(encodeInputPacket(packet([...ALL_BUTTONS])))!.buttons).toEqual(new Set(ALL_BUTTONS));
     });
 
-    it('round-trips all buttons pressed simultaneously', () => {
-        const buttons = new Set<ButtonId>(ALL_BUTTONS);
-        const decoded = decodeInputState(encodeInputState({ buttons, seq: 42, timestamp: 999 }));
-        expect(decoded.buttons).toEqual(buttons);
-        expect(decoded.seq).toBe(42);
+    it('is a fixed 9 bytes', () => {
+        expect(encodeInputPacket(packet([])).byteLength).toBe(INPUT_PACKET_BYTES);
+        expect(encodeInputPacket(packet([...ALL_BUTTONS])).byteLength).toBe(INPUT_PACKET_BYTES);
     });
 
-    it('wraps the sequence number at 256, not overflowing into the button mask', () => {
-        const decoded = decodeInputState(encodeInputState({ buttons: new Set(['a']), seq: 256, timestamp: 0 }));
-        expect(decoded.seq).toBe(0);
-        expect(decoded.buttons).toEqual(new Set(['a']));
-
-        const decoded2 = decodeInputState(encodeInputState({ buttons: new Set(['a']), seq: 257, timestamp: 0 }));
-        expect(decoded2.seq).toBe(1);
+    it('wraps seq to 16 bits without touching the button bits', () => {
+        const decoded = decodeInputPacket(encodeInputPacket(packet(['start'], 0x10001)))!;
+        expect(decoded.seq).toBe(1);
+        expect(decoded.buttons).toEqual(new Set(['start']));
     });
 
-    it('produces a fixed-size buffer regardless of how many buttons are set', () => {
-        expect(encodeInputState({ buttons: new Set(), seq: 0, timestamp: 0 }).byteLength).toBe(INPUT_MESSAGE_BYTE_LENGTH);
-        expect(encodeInputState({ buttons: new Set(ALL_BUTTONS), seq: 0, timestamp: 0 }).byteLength).toBe(INPUT_MESSAGE_BYTE_LENGTH);
+    it('round-trips analog axes to within one step and clamps out-of-range values', () => {
+        const decoded = decodeInputPacket(encodeInputPacket(packet([], 1, [0.5, -1, 2, -3])))!;
+        expect(decoded.axes[0]).toBeCloseTo(0.5, 1);
+        expect(decoded.axes[1]).toBe(-1);
+        expect(decoded.axes[2]).toBe(1);
+        expect(decoded.axes[3]).toBe(-1);
     });
 
-    it('preserves timestamp to float32 precision', () => {
-        const decoded = decodeInputState(encodeInputState({ buttons: new Set(), seq: 0, timestamp: 1234567.25 }));
-        expect(decoded.timestamp).toBeCloseTo(1234567.25, 1);
+    it('accepts a Uint8Array view (what some DataChannel paths deliver)', () => {
+        const bytes = new Uint8Array(encodeInputPacket(packet(['a', 'up'], 7)));
+        expect(decodeInputPacket(bytes)!.buttons).toEqual(new Set(['a', 'up']));
     });
 
-    it('decodes from a DataChannel-style ArrayBufferView (Uint8Array), not just a bare ArrayBuffer', () => {
-        const buffer = encodeInputState({ buttons: new Set(['start', 'select']), seq: 5, timestamp: 10 });
-        const view = new Uint8Array(buffer);
-        const decoded = decodeInputState(view);
-        expect(decoded.buttons).toEqual(new Set(['start', 'select']));
-    });
-
-    it('rejects a truncated message instead of silently misreading it', () => {
-        const short = new ArrayBuffer(INPUT_MESSAGE_BYTE_LENGTH - 1);
-        expect(() => decodeInputState(short)).toThrow();
+    it('rejects packets of the wrong size or type instead of misreading them', () => {
+        expect(decodeInputPacket(new ArrayBuffer(8))).toBeNull();
+        expect(decodeInputPacket(new ArrayBuffer(10))).toBeNull();
+        const wrongType = new Uint8Array(encodeInputPacket(packet(['a'])));
+        wrongType[0] = 99;
+        expect(decodeInputPacket(wrongType)).toBeNull();
     });
 });
 
-describe('control message encode/decode round-trip', () => {
-    const samples: ControlMessage[] = [
-        { type: 'join', displayName: 'p2', sessionToken: 'abc123' },
-        { type: 'joined', slot: 2, sessionToken: 'abc123' },
-        { type: 'join-rejected', reason: 'room-full' },
-        { type: 'slot-assigned', slot: 3, peerId: 'peer-xyz' },
-        { type: 'slot-reserved', slot: 4, expiresAt: 1234567890 },
-        { type: 'slot-released', slot: 2 },
-        { type: 'leave' },
-        { type: 'kick', slot: 3 },
-        { type: 'kicked', reason: 'inactivity' },
-        { type: 'host-event', event: 'rewind-start' },
-        { type: 'host-status', backgrounded: true },
-        { type: 'ping', ts: 42 },
-        { type: 'pong', ts: 43 },
-    ];
+describe('isNewerSeq', () => {
+    it('orders ordinary increments', () => {
+        expect(isNewerSeq(2, 1)).toBe(true);
+        expect(isNewerSeq(1, 2)).toBe(false);
+        expect(isNewerSeq(5, 5)).toBe(false);
+    });
 
-    it.each(samples)('round-trips %o', (message) => {
+    it('treats a wrap from 65535 to 0 as newer', () => {
+        expect(isNewerSeq(0, 0xffff)).toBe(true);
+        expect(isNewerSeq(3, 0xfffe)).toBe(true);
+        expect(isNewerSeq(0xffff, 0)).toBe(false);
+    });
+
+    it('rejects a late packet overtaken on the unordered channel', () => {
+        // press (seq 10) arrives after release (seq 11): must be dropped
+        expect(isNewerSeq(10, 11)).toBe(false);
+    });
+});
+
+describe('control messages', () => {
+    it('round-trips', () => {
+        const message = { type: 'roster' as const, players: [{ slot: 2 as const, status: 'occupied' as const, name: 'Ana' }], spectators: 1 };
         expect(decodeControlMessage(encodeControlMessage(message))).toEqual(message);
     });
 
-    it('rejects a message with no "type" field', () => {
-        expect(() => decodeControlMessage(JSON.stringify({ slot: 2 }))).toThrow();
-    });
-
-    it('rejects malformed JSON', () => {
-        expect(() => decodeControlMessage('{not json')).toThrow();
+    it('returns null for malformed, oversized, or non-string input', () => {
+        expect(decodeControlMessage('{nope')).toBeNull();
+        expect(decodeControlMessage(JSON.stringify({ slot: 2 }))).toBeNull();
+        expect(decodeControlMessage('x'.repeat(5000))).toBeNull();
+        expect(decodeControlMessage(new ArrayBuffer(4))).toBeNull();
     });
 });
