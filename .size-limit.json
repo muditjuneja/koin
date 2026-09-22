@@ -10,5 +10,12 @@
     "path": "dist/systems.mjs",
     "limit": "20 kB",
     "brotli": false
+  },
+  {
+    "name": "koin.js/netplay (ESM)",
+    "path": "dist/netplay.mjs",
+    "import": "*",
+    "limit": "240 kB",
+    "brotli": false
   }
 ]

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LogOut, Maximize, Play, Volume2, VolumeX } from 'lucide-react';
-import CabinetLoading from '../../components/Overlays/CabinetLoading';
+import { Loader2, LogOut, Maximize, Play, Volume2, VolumeX } from 'lucide-react';
 import VirtualController from '../../components/VirtualController/VirtualController';
 import ConnectionIndicator from './ConnectionIndicator';
 import { useSessionState } from '../react/hooks';
@@ -96,7 +95,15 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
             'joining': ['JOINING...', 'Setting up the connection'],
             'reconnecting': ['RECONNECTING...', 'Connection dropped — keeping your seat'],
         }[state.status as 'connecting'];
-        return <CabinetLoading system={system} systemColor={systemColor} loadingText={text[0]} subtitle={text[1]} />;
+        // Deliberately light (no console artwork): this is the first thing a
+        // guest opening an invite link on a phone waits on.
+        return (
+            <div className="koin-scope bg-black min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
+                <Loader2 className="w-10 h-10 animate-spin" style={{ color: systemColor }} />
+                <p className="font-heading text-sm tracking-widest" style={{ color: systemColor }}>{text[0]}</p>
+                <p className="text-gray-400 text-sm max-w-xs">{text[1]}</p>
+            </div>
+        );
     }
 
     if (state.status !== 'connected') {

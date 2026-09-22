@@ -185,7 +185,13 @@ export class CoopHostSession {
         const peerId = typeof target === 'string' ? target : this.room.getSlots().find((s) => s.slot === target)?.peerId;
         const kicked = this.room.kick(target);
         const entry = peerId ? this.peers.get(peerId) : undefined;
-        if (typeof target === 'number') this.pads.release(target);
+        const slot = typeof target === 'number' ? target : entry?.slot;
+        if (entry) {
+            // Its connection stays open briefly so the kick notice arrives;
+            // input still in flight must not press the slot's buttons again.
+            entry.slot = undefined;
+        }
+        if (slot !== undefined) this.pads.release(slot);
         if (entry) {
             entry.pc.sendControl({ type: 'kicked' });
             this.signaling?.send(entry.peerId, { type: 'join-rejected', reason: 'kicked' });
