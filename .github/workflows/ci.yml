@@ -27,3 +27,43 @@ jobs:
 
       - name: Run verification (typecheck, tests, build, export contract)
         run: npm run verify
+
+  e2e:
+    name: Netplay co-op end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/cloudflare/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Cache RetroArch cores
+        uses: actions/cache@v4
+        with:
+          path: tests/e2e/.cache/cores
+          key: e2e-cores-v1.22.2
+
+      # Real fceumm core, real signaling worker (wrangler dev), real browsers.
+      - name: Run end-to-end suite
+        run: npm run test:e2e
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failures
+          path: tests/e2e/.cache/failures
+          if-no-files-found: ignore

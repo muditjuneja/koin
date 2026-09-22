@@ -1,4 +1,9 @@
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Browser, Locator, Page } from 'playwright';
+
+const FAILURE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '.cache/failures');
 
 /** Read order of an NES controller — the input-test ROM draws one tile per bit in this order. */
 export const NES_BUTTONS = ['a', 'b', 'select', 'start', 'up', 'down', 'left', 'right'] as const;
@@ -11,36 +16,63 @@ export function row(...buttons: NesButton[]): string {
 export const IDLE = row();
 
 /**
- * Screenshots `target` and decodes the input-test ROM's grid: one 8-bit row
- * per player (P1..P4) as the emulated game read its controllers. Works on the
- * host's canvas and on the guest's received video alike — the lit-pixel
- * bounding box is the calibration-tile frame, whatever the scaling.
+ * Decodes the input-test ROM's grid from `target`: one 8-bit row per player
+ * (P1..P4) as the emulated game read its controllers. The host's canvas is
+ * screenshotted (WebGL, no preserved drawing buffer); the guest's <video> is
+ * read directly, so only what was received counts, not UI drawn over it.
+ * Either way the calibration-tile frame gives the scale.
  */
 export async function readGrid(page: Page, target: Locator): Promise<string[] | null> {
-    const png = (await target.screenshot()).toString('base64');
-    return page.evaluate(async (b64) => {
-        const img = new Image();
-        img.src = `data:image/png;base64,${b64}`;
-        await img.decode();
+    const isVideo = await target.evaluate((el) => el.tagName === 'VIDEO');
+    const png = isVideo ? null : (await target.screenshot()).toString('base64');
+    return target.evaluate(async (el, b64) => {
+        let source: CanvasImageSource;
+        let w: number;
+        let h: number;
+        if (b64) {
+            const img = new Image();
+            img.src = `data:image/png;base64,${b64}`;
+            await img.decode();
+            [source, w, h] = [img, img.width, img.height];
+        } else {
+            const video = el as HTMLVideoElement;
+            [source, w, h] = [video, video.videoWidth, video.videoHeight];
+        }
+        if (!w || !h) return null;
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const { data, width, height } = ctx.getImageData(0, 0, img.width, img.height);
+        ctx.drawImage(source, 0, 0);
+        const { data, width, height } = ctx.getImageData(0, 0, w, h);
         const lit = (x: number, y: number) => {
             const i = (y * width + x) * 4;
             return data[i] + data[i + 1] + data[i + 2] > 384;
         };
-        // Bounding box over rows/columns with at least 2 lit pixels, so stray
-        // compression noise in the video can't stretch it.
-        const cols = new Array(width).fill(0);
-        const rows = new Array(height).fill(0);
-        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (lit(x, y)) { cols[x]++; rows[y]++; }
-        const x0 = cols.findIndex((c) => c >= 2);
-        const x1 = cols.length - 1 - [...cols].reverse().findIndex((c) => c >= 2);
-        const y0 = rows.findIndex((c) => c >= 2);
-        const y1 = rows.length - 1 - [...rows].reverse().findIndex((c) => c >= 2);
+        // The calibration frame is found from solid lit blocks only: the ROM's
+        // tiles are filled squares at any scale, while UI overlays drawn over
+        // the canvas (badges, text) and video compression noise are not.
+        const K = 4;
+        const sat = new Int32Array((width + 1) * (height + 1));
+        for (let y = 0; y < height; y++) {
+            let rowSum = 0;
+            for (let x = 0; x < width; x++) {
+                rowSum += lit(x, y) ? 1 : 0;
+                sat[(y + 1) * (width + 1) + x + 1] = sat[y * (width + 1) + x + 1] + rowSum;
+            }
+        }
+        const solid = (x: number, y: number) =>
+            sat[(y + K) * (width + 1) + x + K] - sat[y * (width + 1) + x + K] - sat[(y + K) * (width + 1) + x] + sat[y * (width + 1) + x] === K * K;
+        let x0 = -1, y0 = -1, x1 = -1, y1 = -1;
+        for (let y = 0; y + K <= height; y++) {
+            for (let x = 0; x + K <= width; x++) {
+                if (!solid(x, y)) continue;
+                if (x0 < 0 || x < x0) x0 = x;
+                if (y0 < 0 || y < y0) y0 = y;
+                x1 = Math.max(x1, x + K - 1);
+                y1 = Math.max(y1, y + K - 1);
+            }
+        }
         if (x0 < 0 || y0 < 0) return null;
         // Calibration tiles span NES tile columns 11-20 (80 px) and rows 8-18 (88 px).
         const sx = (x1 + 1 - x0) / 80;
@@ -68,7 +100,10 @@ export async function waitForGrid(page: Page, target: Locator, expected: (string
         if (last && expected.every((want, i) => want === undefined || last![i] === want)) return last;
         await page.waitForTimeout(100);
     }
-    throw new Error(`grid never matched.\n  expected: ${JSON.stringify(expected)}\n  last:     ${JSON.stringify(last)}`);
+    const shot = path.join(FAILURE_DIR, `grid-${Date.now()}.png`);
+    mkdirSync(FAILURE_DIR, { recursive: true });
+    await target.screenshot({ path: shot }).catch(() => {});
+    throw new Error(`grid never matched (screenshot: ${shot}).\n  expected: ${JSON.stringify(expected)}\n  last:     ${JSON.stringify(last)}`);
 }
 
 export async function waitFor<T>(page: Page, fn: () => T | Promise<T>, what: string, timeoutMs = 20_000): Promise<T> {
