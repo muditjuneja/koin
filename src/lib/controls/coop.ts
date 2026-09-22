@@ -41,6 +41,17 @@ export function coopRetroArchConfig(): Record<string, unknown> {
     return config;
 }
 
+/**
+ * Remote co-op players reach RetroArch as virtual gamepads with this id
+ * prefix. koin's own gamepad UI (connect toasts, the mapper, the controller
+ * count) must ignore them — they belong to guests, not to the host.
+ */
+export const COOP_VIRTUAL_GAMEPAD_ID_PREFIX = 'koin netplay player ';
+
+export function isCoopVirtualGamepad(pad: { id: string } | null | undefined): boolean {
+    return !!pad && pad.id.startsWith(COOP_VIRTUAL_GAMEPAD_ID_PREFIX);
+}
+
 export const COOP_REMAP_DIRECTORY = '/home/web_user/retroarch/userdata/config/remaps';
 
 interface CoopCoreProfile {

@@ -16,6 +16,7 @@
 
 import { ALL_BUTTONS, ButtonId, PlayerIndex } from '../../lib/controls/types';
 import { DEFAULT_GAMEPAD } from '../../lib/controls/defaults';
+import { COOP_VIRTUAL_GAMEPAD_ID_PREFIX } from '../../lib/controls/coop';
 import type { ControllerState } from '../transport/protocol';
 
 interface VirtualButton { pressed: boolean; touched: boolean; value: number }
@@ -47,7 +48,7 @@ const BUTTON_INDEX = new Map<ButtonId, number>(
 
 function makePad(player: PlayerIndex): VirtualPad {
     return {
-        id: `koin netplay player ${player} (STANDARD GAMEPAD)`,
+        id: `${COOP_VIRTUAL_GAMEPAD_ID_PREFIX}${player} (STANDARD GAMEPAD)`,
         index: player - 1,
         connected: true,
         mapping: 'standard',

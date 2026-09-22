@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { GamepadInfo, ControllerBrand, STANDARD_GAMEPAD_BUTTONS } from '../lib/controls';
+import { isCoopVirtualGamepad } from '../lib/controls/coop';
 
 // Re-export types for convenience
 export type { GamepadInfo, ControllerBrand };
@@ -127,7 +128,7 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
 
         for (let i = 0; i < rawGamepads.length; i++) {
             const gp = rawGamepads[i];
-            if (gp && gp.connected) {
+            if (gp && gp.connected && !isCoopVirtualGamepad(gp)) {
                 connected.push(toGamepadInfo(gp));
             }
         }
@@ -137,8 +138,8 @@ export function useGamepad(options?: UseGamepadOptions): UseGamepadReturn {
 
     // Get raw gamepad for button state reading
     const getRawGamepad = useCallback((index: number): Gamepad | null => {
-        const rawGamepads = navigator.getGamepads?.() ?? [];
-        return rawGamepads[index] ?? null;
+        const gamepad = navigator.getGamepads?.()[index] ?? null;
+        return isCoopVirtualGamepad(gamepad) ? null : gamepad;
     }, []);
 
     // Refresh function
