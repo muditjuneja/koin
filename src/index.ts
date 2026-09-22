@@ -13,6 +13,8 @@ export { SHADER_PRESETS, type ShaderPresetId } from './lib/shader-presets';
 export { default as ShortcutsReference } from './components/UI/ShortcutsReference';
 export * from './hooks/useGameRecording';
 export * from './lib/rom-cache';
+export { ErrorBoundary } from './components/UI/ErrorBoundary';
+export type { ErrorBoundaryProps } from './components/UI/ErrorBoundary';
 
 // i18n exports
 export { en, es, fr } from './locales';

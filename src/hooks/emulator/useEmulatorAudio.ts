@@ -46,6 +46,9 @@ export function useEmulatorAudio({ nostalgistRef, initialVolume = 100, onGainNod
     }, [onGainNodeReady]);
 
     useEffect(() => {
+        // Guard: AudioNode only exists in browser — skip in SSR / Cloudflare Workers
+        if (typeof AudioNode === 'undefined') return;
+
         // Store original connect method
         const originalConnect = AudioNode.prototype.connect;
 
@@ -93,6 +96,7 @@ export function useEmulatorAudio({ nostalgistRef, initialVolume = 100, onGainNod
             AudioNode.prototype.connect = originalConnect;
         };
     }, []);
+
 
     const setVolumeLevel = useCallback((newVolume: number) => {
         // Clamp to 0-100 range

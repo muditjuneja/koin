@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'gamepad';
 
@@ -37,13 +37,25 @@ export interface UseToastReturn {
  */
 export function useToast(defaultDuration: number = 3000): UseToastReturn {
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+    // Clean up all pending auto-dismiss timers on unmount
+    useEffect(() => {
+        const timers = timersRef.current;
+        return () => {
+            timers.forEach(timer => clearTimeout(timer));
+            timers.clear();
+        };
+    }, []);
 
     const showToast = useCallback((
         message: string,
         type: ToastType = 'info',
         options?: ShowToastOptions
     ) => {
-        const id = crypto.randomUUID();
+        const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         const duration = options?.duration ?? defaultDuration;
 
         const newToast: Toast = {
@@ -60,17 +72,26 @@ export function useToast(defaultDuration: number = 3000): UseToastReturn {
 
         // Auto-dismiss after duration
         if (duration > 0) {
-            setTimeout(() => {
+            const timer = setTimeout(() => {
+                timersRef.current.delete(id);
                 setToasts((prev) => prev.filter((t) => t.id !== id));
             }, duration);
+            timersRef.current.set(id, timer);
         }
     }, [defaultDuration]);
 
     const dismissToast = useCallback((id: string) => {
+        const timer = timersRef.current.get(id);
+        if (timer) {
+            clearTimeout(timer);
+            timersRef.current.delete(id);
+        }
         setToasts((prev) => prev.filter((t) => t.id !== id));
     }, []);
 
     const clearToasts = useCallback(() => {
+        timersRef.current.forEach(timer => clearTimeout(timer));
+        timersRef.current.clear();
         setToasts([]);
     }, []);
 

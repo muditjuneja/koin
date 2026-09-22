@@ -37,7 +37,6 @@ beforeAll(() => {
     }
     // The object literal source is plain JS (string keys/values only) — safe to
     // evaluate directly, it's read from our own pinned node_modules, not user input.
-    // eslint-disable-next-line no-eval
     nostalgistKeyboardCodeMap = eval(`(${match[1].replace(/;\s*$/, '')})`);
 });
 

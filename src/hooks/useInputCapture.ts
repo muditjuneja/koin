@@ -3,7 +3,7 @@
  * Manages the listening state and Escape key handling for control/gamepad mappers
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 export interface UseInputCaptureOptions {
     /** Whether the modal is currently open */
@@ -33,6 +33,11 @@ export function useInputCapture<T>({
 }: UseInputCaptureOptions): UseInputCaptureReturn<T> {
     const [listeningFor, setListeningFor] = useState<T | null>(null);
 
+    const onCloseRef = useRef(onClose);
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
     const startListening = useCallback((target: T) => {
         setListeningFor(target);
     }, []);
@@ -61,14 +66,14 @@ export function useInputCapture<T>({
                     setListeningFor(null);
                 } else {
                     // Close the modal
-                    onClose();
+                    onCloseRef.current?.();
                 }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, listeningFor, onClose]);
+    }, [isOpen, listeningFor]);
 
     return {
         listeningFor,

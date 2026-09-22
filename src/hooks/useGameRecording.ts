@@ -38,15 +38,28 @@ export function useGameRecording({
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const startTimeRef = useRef<number>(0);
-    const pausedTimeRef = useRef<number>(0);
+    const pauseStartTimeRef = useRef<number>(0);
+    const totalPausedTimeRef = useRef<number>(0);
     const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // Ref mirror so the duration interval always reads the live paused state
+    const isPausedRef = useRef(false);
+
+    // Keep the ref in sync
+    useEffect(() => {
+        isPausedRef.current = isPaused;
+    }, [isPaused]);
+
+    const getCanvasElementRef = useRef(getCanvasElement);
+    useEffect(() => {
+        getCanvasElementRef.current = getCanvasElement;
+    }, [getCanvasElement]);
 
     // Check browser support
     const isSupported = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm');
 
     // Start recording
     const startRecording = useCallback(() => {
-        const canvas = getCanvasElement();
+        const canvas = getCanvasElementRef.current?.();
         if (!canvas || !isSupported) {
             console.warn('[Recording] Canvas not found or MediaRecorder not supported');
             return;
@@ -78,16 +91,18 @@ export function useGameRecording({
             mediaRecorderRef.current = mediaRecorder;
 
             startTimeRef.current = Date.now();
-            pausedTimeRef.current = 0;
+            pauseStartTimeRef.current = 0;
+            totalPausedTimeRef.current = 0;
             setIsRecording(true);
             setIsPaused(false);
+            isPausedRef.current = false;
             setRecordingDuration(0);
 
-            // Update duration every second
+            // Update duration every second — read isPausedRef (not isPaused) to avoid stale closure
             durationIntervalRef.current = setInterval(() => {
-                if (!isPaused) {
-                    const elapsed = (Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000;
-                    setRecordingDuration(Math.floor(elapsed));
+                if (!isPausedRef.current) {
+                    const elapsed = (Date.now() - startTimeRef.current - totalPausedTimeRef.current) / 1000;
+                    setRecordingDuration(Math.max(0, Math.floor(elapsed)));
                 }
             }, 1000);
 
@@ -95,7 +110,8 @@ export function useGameRecording({
         } catch (err) {
             console.error('[Recording] Failed to start:', err);
         }
-    }, [getCanvasElement, isSupported, isPaused]);
+    }, [isSupported]);
+
 
     // Stop recording and return blob
     const stopRecording = useCallback(async (): Promise<Blob | null> => {
@@ -113,6 +129,8 @@ export function useGameRecording({
                 setIsRecording(false);
                 setIsPaused(false);
                 setRecordingDuration(0);
+                pauseStartTimeRef.current = 0;
+                totalPausedTimeRef.current = 0;
 
                 if (durationIntervalRef.current) {
                     clearInterval(durationIntervalRef.current);
@@ -132,7 +150,7 @@ export function useGameRecording({
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.pause();
             setIsPaused(true);
-            pausedTimeRef.current = Date.now();
+            pauseStartTimeRef.current = Date.now();
             console.log('[Recording] Paused');
         }
     }, []);
@@ -142,7 +160,10 @@ export function useGameRecording({
         const mediaRecorder = mediaRecorderRef.current;
         if (mediaRecorder && mediaRecorder.state === 'paused') {
             // Account for paused time
-            pausedTimeRef.current = Date.now() - pausedTimeRef.current;
+            if (pauseStartTimeRef.current > 0) {
+                totalPausedTimeRef.current += (Date.now() - pauseStartTimeRef.current);
+                pauseStartTimeRef.current = 0;
+            }
             mediaRecorder.resume();
             setIsPaused(false);
             console.log('[Recording] Resumed');
