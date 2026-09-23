@@ -19,7 +19,30 @@ export type SignalingState = 'connecting' | 'open' | 'reconnecting' | 'closed';
 export interface SignalingMessage {
     fromPeerId: string;
     payload: SignalPayload;
+    /**
+     * Who the sender is, as vouched for by the signaling server (from a
+     * verified join token). Absent when the server doesn't verify identity.
+     * Never set from anything the sending client wrote.
+     */
+    identity?: VerifiedIdentity;
 }
+
+/** Claims a signaling server verified for a peer (see the reference worker's join tokens). */
+export interface VerifiedIdentity {
+    /** The integrator's own user id. */
+    userId?: string;
+    /** Display name to show in the room. */
+    name?: string;
+    /** A guest limited to watching. */
+    role?: 'player' | 'spectator';
+}
+
+/**
+ * Credentials for a signaling server that checks who may join (the
+ * reference worker with JOIN_TOKEN_SECRET set). A function is called on
+ * every (re)connect, so short-lived tokens can be minted as needed.
+ */
+export type SignalingToken = string | ((context: { roomCode: string; peerId: string }) => string | Promise<string>);
 
 export interface SignalingTransport {
     readonly state: SignalingState;
@@ -54,6 +77,10 @@ const FATAL_CLOSE_CODES: Record<number, string> = {
     4013: 'room-full',
     4029: 'rate-limited',
 };
+/** Close code for a missing, expired or invalid join token. */
+const CLOSE_UNAUTHORIZED = 4401;
+/** A token provider gets this many consecutive rejections before we give up. */
+const MAX_UNAUTHORIZED_RETRIES = 2;
 
 export interface WebSocketSignalingOptions {
     /** Base URL of the signaling server, e.g. "wss://koin-signaling.example.workers.dev". http(s) is accepted too. */
@@ -62,11 +89,12 @@ export interface WebSocketSignalingOptions {
     peerId: string;
     /** Proves ownership of peerId across reconnects. Generate once per session. */
     secret: string;
+    token?: SignalingToken;
     /** Messages sent while not connected are queued up to this many (oldest dropped). Default 64. */
     maxQueue?: number;
 }
 
-export function buildSignalingUrl({ url, roomCode, peerId, secret }: Pick<WebSocketSignalingOptions, 'url' | 'roomCode' | 'peerId' | 'secret'>): string {
+export function buildSignalingUrl({ url, roomCode, peerId, secret, token }: Pick<WebSocketSignalingOptions, 'url' | 'roomCode' | 'peerId' | 'secret'> & { token?: string }): string {
     const base = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
     if (base.protocol === 'http:') base.protocol = 'ws:';
     if (base.protocol === 'https:') base.protocol = 'wss:';
@@ -74,11 +102,11 @@ export function buildSignalingUrl({ url, roomCode, peerId, secret }: Pick<WebSoc
     base.searchParams.set('room', roomCode);
     base.searchParams.set('peerId', peerId);
     base.searchParams.set('secret', secret);
+    if (token) base.searchParams.set('token', token);
     return base.toString();
 }
 
 export function createWebSocketSignaling(options: WebSocketSignalingOptions): SignalingTransport {
-    const url = buildSignalingUrl(options);
     const maxQueue = options.maxQueue ?? 64;
     const messages = new Emitter<SignalingMessage>();
     const states = new Emitter<SignalingState>();
@@ -88,6 +116,7 @@ export function createWebSocketSignaling(options: WebSocketSignalingOptions): Si
     let queue: string[] = [];
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let unauthorized = 0;
 
     const setState = (next: SignalingState) => {
         if (state === next) return;
@@ -95,8 +124,33 @@ export function createWebSocketSignaling(options: WebSocketSignalingOptions): Si
         states.emit(next);
     };
 
-    const connect = () => {
-        const ws = new WebSocket(url);
+    const scheduleRetry = () => {
+        setState('reconnecting');
+        const delay = Math.min(5000, 250 * 2 ** attempt) * (0.75 + Math.random() * 0.5);
+        attempt++;
+        retryTimer = setTimeout(() => void connect(), delay);
+    };
+
+    const fail = (reason: string) => {
+        closeReason = reason;
+        setState('closed');
+    };
+
+    const connect = async () => {
+        let token: string | undefined;
+        if (typeof options.token === 'function') {
+            try {
+                token = await options.token({ roomCode: options.roomCode, peerId: options.peerId });
+            } catch (err) {
+                console.warn('[netplay] could not get a signaling token:', err);
+                if (state !== 'closed') scheduleRetry();
+                return;
+            }
+        } else {
+            token = options.token;
+        }
+        if (state === 'closed') return;
+        const ws = new WebSocket(buildSignalingUrl({ ...options, token }));
         socket = ws;
         ws.onopen = () => {
             attempt = 0;
@@ -105,10 +159,12 @@ export function createWebSocketSignaling(options: WebSocketSignalingOptions): Si
         };
         ws.onmessage = (event) => {
             if (typeof event.data !== 'string') return;
+            unauthorized = 0; // the server accepted us
             try {
                 const message = JSON.parse(event.data);
                 if (message && typeof message.fromPeerId === 'string' && message.payload && typeof message.payload.type === 'string') {
-                    messages.emit({ fromPeerId: message.fromPeerId, payload: message.payload });
+                    const identity = parseIdentity(message.identity);
+                    messages.emit(identity ? { fromPeerId: message.fromPeerId, payload: message.payload, identity } : { fromPeerId: message.fromPeerId, payload: message.payload });
                 }
             } catch {
                 // not JSON — ignore
@@ -119,17 +175,20 @@ export function createWebSocketSignaling(options: WebSocketSignalingOptions): Si
             socket = null;
             const fatal = FATAL_CLOSE_CODES[event.code];
             if (fatal) {
-                closeReason = fatal;
-                setState('closed');
+                fail(fatal);
                 return;
             }
-            setState('reconnecting');
-            const delay = Math.min(5000, 250 * 2 ** attempt) * (0.75 + Math.random() * 0.5);
-            attempt++;
-            retryTimer = setTimeout(connect, delay);
+            if (event.code === CLOSE_UNAUTHORIZED) {
+                // A fixed token won't get better; a provider may mint a valid one.
+                if (typeof options.token !== 'function' || ++unauthorized > MAX_UNAUTHORIZED_RETRIES) {
+                    fail('unauthorized');
+                    return;
+                }
+            }
+            scheduleRetry();
         };
     };
-    connect();
+    void connect();
 
     return {
         get state() { return state; },
@@ -234,4 +293,14 @@ export function createMemorySignalingHub() {
             return transport;
         },
     };
+}
+
+function parseIdentity(value: unknown): VerifiedIdentity | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const { userId, name, role } = value as Record<string, unknown>;
+    const identity: VerifiedIdentity = {};
+    if (typeof userId === 'string') identity.userId = userId;
+    if (typeof name === 'string') identity.name = name;
+    if (role === 'player' || role === 'spectator') identity.role = role;
+    return Object.keys(identity).length ? identity : undefined;
 }

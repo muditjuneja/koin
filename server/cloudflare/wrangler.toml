@@ -22,3 +22,11 @@ new_sqlite_classes = ["SignalingRoom"]
 #   wrangler secret put CF_TURN_KEY_ID
 #   wrangler secret put CF_TURN_API_TOKEN
 # (Create a TURN key at https://developers.cloudflare.com/realtime/turn/ first.)
+
+# Access control is optional. Without it, anyone with a room code can join
+# (fine for a public demo). A site with accounts should set a secret and
+# have its backend mint join tokens (src/join-token.ts documents the format;
+# signJoinToken() mints them from any JS runtime):
+#   wrangler secret put JOIN_TOKEN_SECRET
+# Then every signaling connection and /turn-credentials request must carry
+# a valid token.

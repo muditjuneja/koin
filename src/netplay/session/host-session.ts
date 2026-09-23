@@ -13,8 +13,9 @@ import { coopMaxPlayers } from '../../lib/controls/coop';
 import type { PlayerIndex } from '../../lib/controls/types';
 import { VirtualGamepadHub, type EmulatorEventSource } from '../input/virtual-gamepads';
 import { CoopPeerConnection } from '../transport/peer';
+import { IceServerSource, type IceServersOption } from '../transport/ice-servers';
 import { decodeInputPacket, HOST_PEER_ID, isNewerSeq, type ControlMessage, type HostEvent, type RosterEntry, type SignalPayload } from '../transport/protocol';
-import { createWebSocketSignaling, type SignalingTransport } from '../transport/signaling';
+import { createWebSocketSignaling, type SignalingToken, type SignalingTransport, type VerifiedIdentity } from '../transport/signaling';
 import { applyEncodingProfile, applyVideoCodecPreferences } from '../quality/sender-tuning';
 import { DegradationLadder, p90, profileFor } from '../quality/degradation-ladder';
 import { RoomManager, type SlotView } from './room-manager';
@@ -32,11 +33,18 @@ export interface CoopEmulatorHandle extends EmulatorEventSource {
 export interface CoopHostOptions {
     /** Base URL of the signaling server, or a ready transport (e.g. createMemorySignalingHub().connect('host')). */
     signaling: string | SignalingTransport;
+    /** Join token for signaling servers that check who may host (see the reference worker's JOIN_TOKEN_SECRET). */
+    signalingToken?: SignalingToken;
     /** Reuse a room code (e.g. after a host page reload); a fresh one is generated otherwise. */
     roomCode?: string;
     /** Core the emulator runs — decides how many players can join (2 unless the core has 4 ports or a multitap). */
     core?: string;
-    iceServers?: RTCIceServer[];
+    /**
+     * STUN/TURN servers: a fixed list, or a provider called again when
+     * credentials age or a connection fails (see turnCredentialsProvider).
+     * Default: public STUN only.
+     */
+    iceServers?: IceServersOption;
     maxSpectators?: number;
     /** How long a dropped player's slot is held for them. Default 30 s. */
     reconnectWindowMs?: number;
@@ -47,6 +55,8 @@ export interface CoopHostPeer {
     role: 'player' | 'spectator';
     slot?: PlayerIndex;
     name?: string;
+    /** The integrator's user id, when the signaling server verified one. */
+    userId?: string;
     connected: boolean;
     rttMs: number | null;
     relayed: boolean;
@@ -71,6 +81,7 @@ interface PeerEntry {
     role: 'player' | 'spectator';
     slot?: PlayerIndex;
     name?: string;
+    userId?: string;
     pc: CoopPeerConnection;
     connected: boolean;
     lastSeq: number | null;
@@ -113,7 +124,10 @@ export class CoopHostSession {
     private removeVisibilityListener?: () => void;
     private snapshot: CoopHostState;
 
+    private readonly ice: IceServerSource;
+
     constructor(private readonly options: CoopHostOptions) {
+        this.ice = new IceServerSource(options.iceServers);
         this.roomCode = options.roomCode ?? generateRoomCode();
         this.maxPlayers = coopMaxPlayers(options.core);
         this.room = new RoomManager({ maxPlayers: this.maxPlayers, maxSpectators: options.maxSpectators, reconnectWindowMs: options.reconnectWindowMs });
@@ -131,20 +145,23 @@ export class CoopHostSession {
     }
 
     start(): void {
+        void this.ice.get(); // have TURN credentials ready before anyone joins
         if (this.status !== 'idle') return;
         this.status = 'starting';
         const { signaling } = this.options;
         this.signaling = typeof signaling === 'string'
-            ? createWebSocketSignaling({ url: signaling, roomCode: this.roomCode, peerId: HOST_PEER_ID, secret: this.hostSecret() })
+            ? createWebSocketSignaling({ url: signaling, roomCode: this.roomCode, peerId: HOST_PEER_ID, secret: this.hostSecret(), token: this.options.signalingToken })
             : signaling;
-        this.signaling.onMessage(({ fromPeerId, payload }) => this.handleSignal(fromPeerId, payload));
+        this.signaling.onMessage(({ fromPeerId, payload, identity }) => this.handleSignal(fromPeerId, payload, identity));
         this.signaling.onStateChange((state) => {
             if (state === 'open' && this.status === 'starting') this.status = 'hosting';
             if (state === 'closed' && this.signaling?.closeReason && this.signaling.closeReason !== 'closed') {
                 this.status = 'error';
                 this.error = this.signaling.closeReason === 'peer-id-taken'
                     ? 'This room is already hosted from another tab or device.'
-                    : `Signaling closed: ${this.signaling.closeReason}`;
+                    : this.signaling.closeReason === 'unauthorized'
+                        ? 'Not allowed to host this room (the signaling server refused the join token).'
+                        : `Signaling closed: ${this.signaling.closeReason}`;
             }
             this.emit();
         });
@@ -265,11 +282,14 @@ export class CoopHostSession {
         for (const entry of this.peers.values()) void entry.pc.setTracks(this.videoTrack, this.audioTrack);
     }
 
-    private handleSignal(from: string, payload: SignalPayload): void {
+    private handleSignal(from: string, payload: SignalPayload, identity?: VerifiedIdentity): void {
         switch (payload.type) {
-            case 'join':
-                this.handleJoin(from, payload.role === 'spectator' ? 'spectator' : 'player', payload.sessionToken, payload.name);
+            case 'join': {
+                // A server-verified identity outranks what the guest says about itself.
+                const role = identity?.role === 'spectator' || payload.role === 'spectator' ? 'spectator' : 'player';
+                this.handleJoin(from, role, payload.sessionToken, identity?.name ?? payload.name, identity?.userId);
                 break;
+            }
             case 'sdp':
             case 'ice':
                 void this.peers.get(from)?.pc.handleSignal(payload);
@@ -290,7 +310,7 @@ export class CoopHostSession {
         }
     }
 
-    private handleJoin(peerId: string, role: 'player' | 'spectator', sessionToken?: string, name?: string): void {
+    private handleJoin(peerId: string, role: 'player' | 'spectator', sessionToken?: string, name?: string, userId?: string): void {
         if (peerId === HOST_PEER_ID || peerId.startsWith('__')) return;
         const existing = this.peers.get(peerId);
         const result = this.room.join(peerId, role, { sessionToken, name: typeof name === 'string' ? name.slice(0, 32) : undefined });
@@ -321,6 +341,7 @@ export class CoopHostSession {
             role: result.role,
             slot,
             name,
+            userId,
             connected: false,
             lastSeq: null,
             rttMs: null,
@@ -329,7 +350,8 @@ export class CoopHostSession {
             inputStale: false,
             pc: new CoopPeerConnection({
                 role: 'host',
-                iceServers: this.options.iceServers,
+                iceServers: this.ice.current(),
+                refreshIceServers: () => this.ice.get(true),
                 configureVideoTransceiver: applyVideoCodecPreferences,
                 onSignal: (signal) => this.signaling?.send(peerId, signal),
                 onConnectionStateChange: (state) => this.handlePeerState(peerId, state),
@@ -517,7 +539,7 @@ export class CoopHostSession {
     }
 
     private buildState(): CoopHostState {
-        const peers = [...this.peers.values()].map(({ peerId, role, slot, name, connected, rttMs, relayed }) => ({ peerId, role, slot, name, connected, rttMs, relayed }));
+        const peers = [...this.peers.values()].map(({ peerId, role, slot, name, userId, connected, rttMs, relayed }) => ({ peerId, role, slot, name, userId, connected, rttMs, relayed }));
         return {
             status: this.status,
             error: this.error,

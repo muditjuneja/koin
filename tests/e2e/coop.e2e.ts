@@ -181,3 +181,76 @@ describe('netplay co-op', () => {
         await host.page.context().close();
     });
 });
+
+// The worker runs with JOIN_TOKEN_SECRET set and the test server plays the
+// site's backend minting tokens — the setup for a service with accounts.
+// Every scenario above already went through that path.
+describe('access control (join tokens)', () => {
+    async function openGuest(room: string, query: Record<string, string>) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        await page.goto(`${baseUrl}/guest.html?${new URLSearchParams({ signal: signalUrl, room, ...query })}`);
+        return page;
+    }
+
+    it('refuses guests without a valid token for this room', async () => {
+        const host = await startHost(browser, baseUrl, signalUrl);
+        for (const query of [{ token: 'none' }, { tokenForged: '1' }, { tokenExpired: '1' }, { tokenRoom: 'ZZZZZZ' }]) {
+            const page = await openGuest(host.room, query);
+            await waitFor(page, () => (window as any).__guest?.state.status === 'rejected', `rejected with ${JSON.stringify(query)}`);
+            expect(await page.evaluate(() => (window as any).__guest.state.rejectReason)).toBe('unauthorized');
+            await page.context().close();
+        }
+        expect(await host.page.evaluate(() => (window as any).__host.state.peers.length)).toBe(0);
+        await host.page.context().close();
+    });
+
+    it("a guest's token can't take the host seat, and TURN credentials need a token", async () => {
+        const host = await startHost(browser, baseUrl, signalUrl);
+        const page = await (await browser.newContext()).newPage();
+        await page.goto(`${baseUrl}/guest.html?${new URLSearchParams({ signal: signalUrl, room: 'AAAAAA', token: 'none' })}`);
+        const probe = await page.evaluate(async ({ signalUrl, room }) => {
+            const guestToken = await (await fetch(`/token?room=${room}&peer=guest`)).text();
+            const url = new URL('/ws', signalUrl.replace(/^http/, 'ws'));
+            url.search = new URLSearchParams({ room, peerId: 'host', secret: 'x'.repeat(24), token: guestToken }).toString();
+            const closeCode = await new Promise<number>((resolve) => {
+                const ws = new WebSocket(url);
+                ws.onclose = (e) => resolve(e.code);
+            });
+            const turnStatus = (await fetch(`${signalUrl}/turn-credentials`)).status;
+            return { closeCode, turnStatus };
+        }, { signalUrl, room: host.room });
+        expect(probe.closeCode).toBe(4401);
+        expect(probe.turnStatus).toBe(401);
+        // The real host is unaffected.
+        expect(await host.page.evaluate(() => (window as any).__host.state.status)).toBe('hosting');
+
+        // Nor can a host page holding only a guest token open a room.
+        const impostor = await (await browser.newContext()).newPage();
+        await impostor.goto(`${baseUrl}/host.html?${new URLSearchParams({ signal: signalUrl, tokenPeer: 'guest' })}`);
+        await waitFor(impostor, () => (window as any).__host?.state.status === 'error', 'impostor host refused');
+
+        await impostor.context().close();
+        await page.context().close();
+        await host.page.context().close();
+    });
+
+    it('the host sees the verified name and user, and a spectator-only token cannot play', async () => {
+        const host = await startHost(browser, baseUrl, signalUrl);
+        const guest = await startGuest(browser, baseUrl, signalUrl, host.room, {
+            name: 'Mallory', // what the guest claims
+            tokenName: 'Ada', tokenSub: 'user-7', tokenRole: 'spectator', // what the backend vouched for
+        });
+        expect(await guest.page.evaluate(() => (window as any).__guest.state.role)).toBe('spectator');
+        const peer = await host.page.evaluate(() => (window as any).__host.state.peers[0]);
+        expect(peer).toMatchObject({ name: 'Ada', userId: 'user-7', role: 'spectator' });
+
+        await guest.page.keyboard.down('KeyX');
+        await guest.page.waitForTimeout(500);
+        expect(await readGrid(host.page, host.canvas)).toEqual([IDLE, IDLE, IDLE, IDLE]);
+
+        await guest.page.context().close();
+        await host.page.context().close();
+    });
+});
+

@@ -17,6 +17,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { TestProject } from 'vitest/node';
 import { build } from 'esbuild';
+import { randomBytes } from 'node:crypto';
+import { signJoinToken } from '../../server/cloudflare/src/join-token';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -25,6 +27,8 @@ const www = path.join(cache, 'www');
 const coresDir = path.join(cache, 'cores');
 const CORE_VERSION = 'v1.22.2';
 const CORES = ['fceumm'];
+/** The worker runs with access control on; the static server plays the integrator's backend and mints tokens. */
+const JOIN_TOKEN_SECRET = randomBytes(24).toString('base64url');
 
 declare module 'vitest' {
     export interface ProvidedContext {
@@ -93,8 +97,23 @@ const CONTENT_TYPES: Record<string, string> = {
 
 function serveStatic(): Promise<Server> {
     const mounts: [string, string][] = [['/cores/', coresDir], ['/fixtures/', path.join(here, 'fixtures')], ['/', www]];
-    const server = createServer((req, res) => {
+    const server = createServer(async (req, res) => {
         const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname === '/token') {
+            // Stand-in for a site's backend: GET /token?room=&peer=host|guest[&name=&sub=&role=&expired=1&forge=1]
+            const q = url.searchParams;
+            const claims = {
+                room: q.get('room') ?? '',
+                peer: q.get('peer') === 'host' ? 'host' as const : 'guest' as const,
+                exp: Math.floor(Date.now() / 1000) + (q.get('expired') ? -60 : 600),
+                ...(q.get('name') && { name: q.get('name')! }),
+                ...(q.get('sub') && { sub: q.get('sub')! }),
+                ...(q.get('role') === 'spectator' && { role: 'spectator' as const }),
+            };
+            const token = await signJoinToken(q.get('forge') ? 'not-the-secret' : JOIN_TOKEN_SECRET, claims);
+            res.writeHead(200, { 'Content-Type': 'text/plain' }).end(token);
+            return;
+        }
         for (const [prefix, dir] of mounts) {
             if (!url.pathname.startsWith(prefix)) continue;
             const file = path.join(dir, path.normalize(url.pathname.slice(prefix.length)));
@@ -112,7 +131,7 @@ async function startSignaling(): Promise<{ process: ChildProcess; url: string }>
     const dir = path.join(root, 'server/cloudflare');
     if (!existsSync(path.join(dir, 'node_modules'))) execFileSync('npm', ['ci', '--no-audit', '--no-fund'], { cwd: dir, stdio: 'ignore' });
     const port = 8700 + Math.floor(Math.random() * 200);
-    const child = spawn(path.join(dir, 'node_modules/.bin/wrangler'), ['dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', path.join(cache, 'wrangler-state')], {
+    const child = spawn(path.join(dir, 'node_modules/.bin/wrangler'), ['dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', path.join(cache, 'wrangler-state'), '--var', `JOIN_TOKEN_SECRET:${JOIN_TOKEN_SECRET}`], {
         cwd: dir,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },

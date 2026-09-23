@@ -12,6 +12,7 @@
 
 import type { PlayerIndex } from '../../lib/controls/types';
 import { CoopPeerConnection } from '../transport/peer';
+import { IceServerSource, type IceServersOption } from '../transport/ice-servers';
 import {
     encodeInputPacket,
     HOST_PEER_ID,
@@ -23,7 +24,7 @@ import {
     type RosterEntry,
     type SignalPayload,
 } from '../transport/protocol';
-import { createWebSocketSignaling, type SignalingTransport } from '../transport/signaling';
+import { createWebSocketSignaling, type SignalingToken, type SignalingTransport } from '../transport/signaling';
 import { JitterBufferController } from '../quality/receiver-tuning';
 import { generateSessionToken, normalizeRoomCode } from './room-code';
 import { classifyConnectionQuality, readTransportStats, type ConnectionQuality } from './connection-quality';
@@ -32,9 +33,16 @@ export interface CoopGuestOptions {
     /** Base URL of the signaling server, or a factory for a ready transport (called per identity). */
     signaling: string | ((identity: { peerId: string; secret: string }) => SignalingTransport);
     roomCode: string;
+    /** Join token for signaling servers that check who may join (see the reference worker's JOIN_TOKEN_SECRET). */
+    signalingToken?: SignalingToken;
     role?: 'player' | 'spectator';
     name?: string;
-    iceServers?: RTCIceServer[];
+    /**
+     * STUN/TURN servers: a fixed list, or a provider called again when
+     * credentials age or a connection fails (see turnCredentialsProvider).
+     * Default: public STUN only.
+     */
+    iceServers?: IceServersOption;
     /** Where the per-tab identity is kept. Default sessionStorage; null to keep nothing. */
     storage?: Storage | null;
     /** How long to wait for a vanished host before giving up. Default 20 s. */
@@ -85,7 +93,8 @@ const FRAME_MS = 1000 / 60;
 
 export class CoopGuestSession {
     readonly roomCode: string;
-    private readonly role: 'player' | 'spectator';
+    /** What we asked for, until the host says otherwise (a spectator-only token makes us a spectator). */
+    private role: 'player' | 'spectator';
     private readonly listeners = new Set<(state: CoopGuestState) => void>();
     private readonly identity: Identity;
     private readonly storageKey: string;
@@ -104,7 +113,10 @@ export class CoopGuestSession {
     private pingRttMs: number | null = null;
     private snapshot: CoopGuestState;
 
+    private readonly ice: IceServerSource;
+
     constructor(private readonly options: CoopGuestOptions) {
+        this.ice = new IceServerSource(options.iceServers);
         const code = normalizeRoomCode(options.roomCode);
         if (!code) throw new Error(`"${options.roomCode}" is not a valid room code`);
         this.roomCode = code;
@@ -135,17 +147,19 @@ export class CoopGuestSession {
     }
 
     start(): void {
+        void this.ice.get(); // have TURN credentials ready before anyone joins
         if (this.signaling) return;
         const { signaling } = this.options;
         const { peerId, secret } = this.identity;
         this.signaling = typeof signaling === 'string'
-            ? createWebSocketSignaling({ url: signaling, roomCode: this.roomCode, peerId, secret })
+            ? createWebSocketSignaling({ url: signaling, roomCode: this.roomCode, peerId, secret, token: this.options.signalingToken })
             : signaling({ peerId, secret });
         this.signaling.onMessage(({ fromPeerId, payload }) => this.handleSignal(fromPeerId, payload));
         this.signaling.onStateChange((state) => {
             if (state === 'open' && this.isActive()) this.requestJoin();
             if (state === 'closed' && this.signaling?.closeReason && this.signaling.closeReason !== 'closed' && this.isActive()) {
-                this.finish('error', { error: `Could not join: ${this.signaling.closeReason}` });
+                if (this.signaling.closeReason === 'unauthorized') this.finish('rejected', { rejectReason: 'unauthorized' });
+                else this.finish('error', { error: `Could not join: ${this.signaling.closeReason}` });
             }
         });
         if (this.signaling.state === 'open') this.requestJoin();
@@ -198,8 +212,9 @@ export class CoopGuestSession {
                 clearInterval(this.joinTimer);
                 this.identity.sessionToken = payload.sessionToken;
                 this.saveIdentity();
+                this.role = payload.role;
                 this.createPeer();
-                this.update({ status: this.snapshot.status === 'reconnecting' ? 'reconnecting' : 'joining', slot: payload.slot });
+                this.update({ status: this.snapshot.status === 'reconnecting' ? 'reconnecting' : 'joining', role: payload.role, slot: payload.slot });
                 break;
             case 'join-rejected':
                 clearInterval(this.joinTimer);
@@ -239,7 +254,8 @@ export class CoopGuestSession {
         this.lastPacketsReceived = 0;
         this.peer = new CoopPeerConnection({
             role: 'guest',
-            iceServers: this.options.iceServers,
+            iceServers: this.ice.current(),
+                refreshIceServers: () => this.ice.get(true),
             onSignal: (signal) => this.signaling?.send(HOST_PEER_ID, signal),
             onTrack: (event) => {
                 if (!this.mediaStream) this.mediaStream = event.streams[0] ?? new MediaStream();

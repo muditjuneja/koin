@@ -38,7 +38,9 @@ export type { ConnectionIndicatorProps } from './netplay/components/ConnectionIn
 
 // Signaling transports
 export { createWebSocketSignaling, createCallbackSignaling, createMemorySignalingHub, buildSignalingUrl } from './netplay/transport/signaling';
-export type { SignalingTransport, SignalingMessage, SignalingState, WebSocketSignalingOptions, CallbackSignalingOptions } from './netplay/transport/signaling';
+export type { SignalingTransport, SignalingMessage, SignalingState, SignalingToken, VerifiedIdentity, WebSocketSignalingOptions, CallbackSignalingOptions } from './netplay/transport/signaling';
+export { DEFAULT_ICE_SERVERS, turnCredentialsProvider, normalizeIceServers } from './netplay/transport/ice-servers';
+export type { IceServersOption, IceServersProvider, TurnCredentialsProviderOptions } from './netplay/transport/ice-servers';
 
 // Guest input
 export { GuestInputController } from './netplay/input/guest-input';

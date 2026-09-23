@@ -33,6 +33,7 @@ const REJECT_TEXT: Record<string, string> = {
     'spectators-full': 'The spectator seats are full.',
     'busy': "The host's computer is at capacity right now.",
     'kicked': 'The host removed you from this session.',
+    'unauthorized': "You don't have access to this room. Sign in or ask the host for a new invite.",
 };
 
 /** A guest's whole screen: the host's stream, their controller, and connection status. */

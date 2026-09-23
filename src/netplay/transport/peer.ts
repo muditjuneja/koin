@@ -21,6 +21,12 @@ type PeerSignal = Extract<SignalPayload, { type: 'sdp' | 'ice' }>;
 export interface CoopPeerConnectionOptions {
     role: PeerRole;
     iceServers?: RTCIceServer[];
+    /**
+     * Called when ICE fails, before recovering: return fresh servers (TURN
+     * credentials expire). The host then restarts ICE; the guest's side is
+     * renegotiated by that restart and uses its refreshed servers.
+     */
+    refreshIceServers?: () => Promise<RTCIceServer[]>;
     onSignal: (signal: PeerSignal) => void;
     onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
     /** Both DataChannels are open — the connection is usable. */
@@ -60,7 +66,7 @@ export class CoopPeerConnection {
             if (candidate) options.onSignal({ type: 'ice', candidate: candidate.toJSON() });
         };
         this.pc.oniceconnectionstatechange = () => {
-            if (this.pc.iceConnectionState === 'failed' && !this.polite) this.pc.restartIce();
+            if (this.pc.iceConnectionState === 'failed') void this.recoverIce();
         };
         this.pc.onconnectionstatechange = () => options.onConnectionStateChange?.(this.pc.connectionState);
         this.pc.ontrack = (event) => options.onTrack?.(event);
@@ -162,6 +168,22 @@ export class CoopPeerConnection {
         } finally {
             this.makingOffer = false;
         }
+    }
+
+    private recovering = false;
+
+    private async recoverIce(): Promise<void> {
+        if (this.recovering || this.closed) return;
+        this.recovering = true;
+        try {
+            const servers = await this.options.refreshIceServers?.();
+            if (servers && !this.closed) this.pc.setConfiguration({ ...this.pc.getConfiguration(), iceServers: servers });
+        } catch (err) {
+            console.warn('[netplay] could not refresh ICE servers:', err);
+        } finally {
+            this.recovering = false;
+        }
+        if (!this.polite && !this.closed && this.pc.iceConnectionState === 'failed') this.pc.restartIce();
     }
 
     private bindChannel(channel: RTCDataChannel): void {

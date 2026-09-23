@@ -21,7 +21,18 @@ export interface Envelope {
     fromPeerId: string;
     toPeerId?: string;
     payload: unknown;
+    /** Set by this server only, from a verified join token (see index.ts). */
+    identity?: VerifiedIdentity;
 }
+
+export interface VerifiedIdentity {
+    userId?: string;
+    name?: string;
+    role?: 'player' | 'spectator';
+}
+
+/** Internal header the worker uses to hand a verified identity to the room; stripped from client requests. */
+export const IDENTITY_HEADER = 'X-Koin-Verified-Identity';
 
 const HOST_ID = 'host';
 const SYSTEM_ID = '__system__';
@@ -36,11 +47,13 @@ const SECRET = /^[A-Za-z0-9_-]{16,128}$/;
 export const CLOSE_PEER_ID_TAKEN = 4009;
 export const CLOSE_ROOM_FULL = 4013;
 export const CLOSE_RATE_LIMITED = 4029;
+export const CLOSE_UNAUTHORIZED = 4401;
 const CLOSE_REPLACED = 4000;
 
 interface Attachment {
     peerId: string;
     announcedLeave?: boolean;
+    identity?: VerifiedIdentity;
 }
 
 export class SignalingRoom implements DurableObject {
@@ -93,8 +106,15 @@ export class SignalingRoom implements DurableObject {
             try { socket.close(CLOSE_REPLACED, 'replaced by a newer connection'); } catch { /* already closing */ }
         }
 
+        let identity: VerifiedIdentity | undefined;
+        try {
+            const header = request.headers.get(IDENTITY_HEADER);
+            identity = header ? JSON.parse(header) : undefined;
+        } catch {
+            identity = undefined;
+        }
         this.ctx.acceptWebSocket(server, [peerId]);
-        server.serializeAttachment({ peerId } satisfies Attachment);
+        server.serializeAttachment({ peerId, identity } satisfies Attachment);
 
         if (peerId === HOST_ID) this.toGuests(SYSTEM_ID, { type: 'host-joined' });
         else this.toPeer(HOST_ID, { fromPeerId: SYSTEM_ID, payload: { type: 'peer-joined', peerId } });
@@ -104,7 +124,8 @@ export class SignalingRoom implements DurableObject {
 
     async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
         if (typeof message !== 'string' || message.length > MAX_MESSAGE_BYTES) return;
-        const sender = (ws.deserializeAttachment() as Attachment | null)?.peerId;
+        const attachment = ws.deserializeAttachment() as Attachment | null;
+        const sender = attachment?.peerId;
         if (!sender) return;
 
         let parsed: { toPeerId?: unknown; payload?: unknown };
@@ -117,7 +138,8 @@ export class SignalingRoom implements DurableObject {
         if (!payload || typeof payload !== 'object' || typeof (payload as { type?: unknown }).type !== 'string') return;
 
         if (sender !== HOST_ID) {
-            this.deliver(ws, HOST_ID, { fromPeerId: sender, toPeerId: HOST_ID, payload });
+            const identity = attachment?.identity;
+            this.deliver(ws, HOST_ID, { fromPeerId: sender, toPeerId: HOST_ID, payload, ...(identity && { identity }) });
             return;
         }
         const to = typeof parsed.toPeerId === 'string' ? parsed.toPeerId : undefined;
