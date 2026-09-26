@@ -105,7 +105,8 @@ export function useGameSession(props: UseGameSessionProps) {
 
     // Soft restart state — logic defined after nostalgist hook below
     const savedStateForRestart = useRef<Uint8Array | null>(null);
-    const [softRestartPending, setSoftRestartPending] = useState(false);
+    // Why a soft restart is queued: new controls (announced with a toast) or a co-op change.
+    const [softRestartPending, setSoftRestartPending] = useState<false | 'controls' | 'coop'>(false);
 
     // RetroAchievements: `raUser` (login/session state used to drive the RA sidebar UI)
     // and `retroAchievementsConfig` (what actually gets wired into the RetroArch core's
@@ -225,7 +226,7 @@ export function useGameSession(props: UseGameSessionProps) {
         setGamepadBindingsVersion(v => v + 1);
 
         if (isRunning) {
-            setSoftRestartPending(true);
+            setSoftRestartPending('controls');
         }
     }, [status, nostalgist]);
 
@@ -247,11 +248,14 @@ export function useGameSession(props: UseGameSessionProps) {
     // Effect: runs after React renders with updated bindings → performs the actual restart
     useEffect(() => {
         if (!softRestartPending) return;
+        const reason = softRestartPending;
         setSoftRestartPending(false);
 
         const doSoftRestart = async () => {
             try {
-                showToastRef.current(tRef.current.notifications.controlsSaved, 'info', { duration: 2000 });
+                if (reason === 'controls') {
+                    showToastRef.current(tRef.current.notifications.controlsSaved, 'info', { duration: 2000 });
+                }
 
                 await nostalgistRef.current.restart();
 
@@ -271,6 +275,29 @@ export function useGameSession(props: UseGameSessionProps) {
 
         doSoftRestart();
     }, [softRestartPending]);
+
+    // Hosting co-op changes RetroArch's input setup (players 2-4 on the guests'
+    // virtual pads, the multitap), which only applies when the core boots. When
+    // the coop prop arrives or goes away after that, boot again into the new
+    // setup: re-prepare a game that hasn't started yet, or soft-restart a running
+    // one from a save state so the player keeps their place.
+    const coopEnabled = !!props.coop;
+    const { preparedForCoop } = nostalgist;
+    const coopReconfigPendingRef = useRef(false);
+    useEffect(() => {
+        if (status === 'loading') coopReconfigPendingRef.current = false;
+        if (preparedForCoop === null || preparedForCoop === coopEnabled || coopReconfigPendingRef.current) return;
+        if (status === 'ready') {
+            coopReconfigPendingRef.current = true;
+            nostalgistRef.current.stop(); // back to idle; the prepare loop boots it with the new setup
+        } else if (status === 'running' || status === 'paused') {
+            coopReconfigPendingRef.current = true;
+            void nostalgistRef.current.saveState().then((stateData) => {
+                savedStateForRestart.current = stateData ?? null;
+                setSoftRestartPending('coop');
+            });
+        }
+    }, [coopEnabled, preparedForCoop, status]);
 
     // Hardcore Restrictions
     const hardcoreRestrictions = useMemo(() => {

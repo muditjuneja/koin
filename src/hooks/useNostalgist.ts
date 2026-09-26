@@ -95,6 +95,8 @@ export interface UseNostalgistReturn {
     // RetroAchievements integration - get access to emulator internals
     getNostalgistInstance: () => Nostalgist | null;
     isPerformanceMode: boolean;
+    // Whether the current emulator was prepared to host co-op (null until the first prepare).
+    preparedForCoop: boolean | null;
 }
 
 export const useNostalgist = ({
@@ -145,6 +147,7 @@ export const useNostalgist = ({
         resize,
         getNostalgistInstance,
         isPerformanceMode,
+        preparedForCoop,
     } = useEmulatorCore({
         system,
         romUrl,
@@ -276,6 +279,7 @@ export const useNostalgist = ({
 
         getNostalgistInstance,
         isPerformanceMode,
+        preparedForCoop,
     }), [
         status, error, isPaused, speed, isRewinding, rewindBufferSize, volume, isMuted,
         prepare, start, stop, restart,
@@ -287,7 +291,8 @@ export const useNostalgist = ({
         screenshot, pressKey, pressDown, pressUp, resize,
         injectCheats, clearCheats,
         getNostalgistInstance,
-        isPerformanceMode
+        isPerformanceMode,
+        preparedForCoop,
     ]);
 
     return hookReturn;

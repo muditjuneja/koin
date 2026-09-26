@@ -8,7 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { chromium, type Browser } from 'playwright';
-import { guestAudioLevel, IDLE, readGrid, row, startGuest, startHost, waitFor, waitForGrid } from './helpers';
+import { guestAudioLevel, IDLE, NES_BUTTONS, readGrid, row, startGuest, startHost, waitFor, waitForGrid } from './helpers';
 
 const baseUrl = inject('baseUrl');
 const signalUrl = inject('signalUrl');
@@ -45,6 +45,33 @@ describe('netplay co-op', () => {
 
         await host.page.context().close();
         await guest.page.context().close();
+    });
+
+    it('hosting can start after the game is already running', async () => {
+        const context = await browser.newContext({ viewport: { width: 1280, height: 960 } });
+        const page = await context.newPage();
+        page.on('pageerror', (err) => console.error('[host pageerror]', err.message));
+        await page.goto(`${baseUrl}/host.html?${new URLSearchParams({ signal: signalUrl, late: '1' })}`);
+        await page.getByRole('button', { name: /play/i }).click();
+        const canvas = page.locator('#canvas');
+        // Single-player setup: no Four Score, so the game reads players 3-4 as all ones.
+        await waitForGrid(page, canvas, [IDLE, IDLE, row(...NES_BUTTONS), row(...NES_BUTTONS)], 30_000);
+
+        // Hosting boots the emulator again with the co-op input setup.
+        await page.evaluate(() => (window as any).__startHosting());
+        await waitFor(page, () => (window as any).__host?.state.status === 'hosting', 'host signaling');
+        await waitFor(page, () => (window as any).__host?.state.emulatorAttached === true, 'emulator attached to co-op session', 30_000);
+        const room = await page.evaluate(() => (window as any).__host.state.roomCode as string);
+        await waitForGrid(page, canvas, [IDLE, IDLE, IDLE, IDLE], 15_000);
+
+        const guests = [];
+        for (let i = 0; i < 3; i++) guests.push(await startGuest(browser, baseUrl, signalUrl, room));
+        await guests[0].page.keyboard.down('KeyX'); // A
+        await guests[2].page.keyboard.down('ArrowDown');
+        await waitForGrid(page, canvas, [IDLE, row('a'), IDLE, row('down')]);
+
+        await context.close();
+        for (const guest of guests) await guest.page.context().close();
     });
 
     it('three guests drive players 2, 3 and 4 independently (NES Four Score)', async () => {

@@ -70,6 +70,8 @@ interface UseEmulatorCoreReturn {
     resize: (size: { width: number; height: number }) => void;
     getNostalgistInstance: () => Nostalgist | null;
     isPerformanceMode: boolean;
+    /** Whether the current emulator was prepared to host co-op; null until the first prepare. */
+    preparedForCoop: boolean | null;
 }
 
 export function useEmulatorCore({
@@ -96,6 +98,7 @@ export function useEmulatorCore({
     const [speed, setSpeedState] = useState<SpeedMultiplier>(1);
     const [isFastForwardOn, setIsFastForwardOn] = useState(false);
     const [isPerformanceMode, setIsPerformanceMode] = useState(false);
+    const [preparedForCoop, setPreparedForCoop] = useState<boolean | null>(null);
 
     const nostalgistRef = useRef<Nostalgist | null>(null);
     const getNostalgistInstance = useCallback(() => nostalgistRef.current, []);
@@ -203,6 +206,7 @@ export function useEmulatorCore({
         try {
             setStatus('loading');
             setError(null);
+            setPreparedForCoop(coop);
 
             // `coreOverride` may be a plain core name (must be one Nostalgist ships out
             // of the box), or a fully custom { name, js, wasm } source — see CustomCoreSource.
@@ -621,5 +625,6 @@ export function useEmulatorCore({
         resize,
         getNostalgistInstance,
         isPerformanceMode,
+        preparedForCoop,
     };
 }
