@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// jsdom supplies `navigator`, which Node only has as a global from v21 (CI also runs Node 20).
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { VirtualGamepadHub } from './virtual-gamepads';
 import { DEFAULT_GAMEPAD } from '../../lib/controls/defaults';
