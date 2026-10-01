@@ -10,6 +10,8 @@ import type { CoopGuestSession } from '../session/guest-session';
 import type { HostEvent } from '../transport/protocol';
 import { getControlsHint } from '../../lib/controls/hints';
 import { DEFAULT_KEYBOARD } from '../../lib/controls/defaults';
+import ToastContainer from '../../components/Overlays/ToastContainer';
+import { useToast } from '../../hooks/useToast';
 
 export interface CoopGuestScreenProps {
     session: CoopGuestSession;
@@ -45,8 +47,8 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
     const [needsTap, setNeedsTap] = useState(false);
     const [muted, setMuted] = useState(false);
     const [volume, setVolume] = useState(100);
-    const [toast, setToast] = useState<string | null>(null);
-    const [controlsHint, setControlsHint] = useState<string | null>(null);
+    // Same toasts as the host's player, so both sides look and dismiss alike
+    const { toasts, showToast, dismissToast } = useToast(3000);
     const controlsHintShownRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const mediaStream = state?.mediaStream ?? null;
@@ -83,21 +85,15 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
     useEffect(() => {
         if (!connectedAsPlayer || controlsHintShownRef.current) return;
         controlsHintShownRef.current = true;
-        setControlsHint(getControlsHint(system, input?.keyboard ?? DEFAULT_KEYBOARD)?.message ?? null);
-    }, [connectedAsPlayer, system, input?.keyboard]);
-    useEffect(() => {
-        if (!controlsHint) return;
-        const timer = setTimeout(() => setControlsHint(null), 6000);
-        return () => clearTimeout(timer);
-    }, [controlsHint]);
+        const hint = getControlsHint(system, input?.keyboard ?? DEFAULT_KEYBOARD);
+        if (hint) showToast(hint.message, 'info', { title: hint.coin ? '🪙 Insert Coin' : '🎮 Controls', duration: 6000 });
+    }, [connectedAsPlayer, system, input?.keyboard, showToast]);
 
     const lastEvent = state?.lastHostEvent;
     useEffect(() => {
-        if (!lastEvent) return;
-        setToast(HOST_EVENT_TEXT[lastEvent.event] ?? null);
-        const timer = setTimeout(() => setToast(null), 3000);
-        return () => clearTimeout(timer);
-    }, [lastEvent]);
+        const text = lastEvent && HOST_EVENT_TEXT[lastEvent.event];
+        if (text) showToast(text, 'info');
+    }, [lastEvent, showToast]);
 
     if (!state) return null;
 
@@ -204,9 +200,12 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
                 </div>
             </div>
 
-            {(toast || state.hostBackgrounded || controlsHint) && (
+            <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+            {/* A standing condition, not an event: stays up while it lasts */}
+            {state.hostBackgrounded && (
                 <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-lg bg-black/80 text-xs text-white">
-                    {toast ?? (state.hostBackgrounded ? "The host's tab is in the background — the game may slow down" : controlsHint)}
+                    {"The host's tab is in the background — the game may slow down"}
                 </div>
             )}
 

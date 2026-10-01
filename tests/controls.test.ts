@@ -137,6 +137,22 @@ describe('Console Capabilities and Defaults', () => {
         expect(genesisDefaults.r).toBe('KeyD');
     });
 
+    it('gives the N64 Z trigger (l2) its own key', () => {
+        const n64Defaults = getConsoleKeyboardDefaults('N64');
+        expect(n64Defaults.l2).toBe('KeyE');
+        expect(n64Defaults.l2).not.toBe(n64Defaults.l);
+    });
+
+    it('resolves systems by canonical key or alias, not just the exact preset name', () => {
+        // Previously keyed SMS / ATARI2600, so these fell through to the generic pad
+        expect(getConsoleButtons('MASTER_SYSTEM')).toEqual(['up', 'down', 'left', 'right', 'a', 'b', 'start']);
+        expect(getConsoleButtons('famicom')).toEqual(getConsoleButtons('NES'));
+        expect(consoleHasButton('ATARI_2600', 'start')).toBe(true); // Reset switch
+        expect(consoleHasButton('ATARI_7800', 'x')).toBe(true);     // Reset
+        expect(consoleHasButton('LYNX', 'select')).toBe(false);     // Options are on L/R
+        expect(getConsoleKeyboardDefaults('ATARI_2600').start).toBe('Enter');
+    });
+
     it('falls back to SNES-like capabilities for unknown platforms', () => {
         const unknown = getConsoleCapabilities('RANDOM_UNKNOWN');
         expect(unknown.buttons).toContain('a');
