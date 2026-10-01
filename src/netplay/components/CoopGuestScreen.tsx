@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Loader2, LogOut, Maximize, Play, Volume2, VolumeX } from 'lucide-react';
 import VirtualController from '../../components/VirtualController/VirtualController';
 import ConnectionIndicator from './ConnectionIndicator';
@@ -22,6 +22,8 @@ export interface CoopGuestScreenProps {
     onExit?: () => void;
     /** Keyboard/gamepad mapping for this guest (defaults to koin's). */
     input?: GuestInputOptions;
+    /** Extra content under "Back" once the session is over (ended, kicked, couldn't join), e.g. an app's own call to action. */
+    endScreenExtra?: ReactNode;
 }
 
 const HOST_EVENT_TEXT: Record<HostEvent, string> = {
@@ -41,7 +43,7 @@ const REJECT_TEXT: Record<string, string> = {
 };
 
 /** A guest's whole screen: the host's stream, their controller, and connection status. */
-export default function CoopGuestScreen({ session, system, systemColor = '#00FF41', onExit, input }: CoopGuestScreenProps) {
+export default function CoopGuestScreen({ session, system, systemColor = '#00FF41', onExit, input, endScreenExtra }: CoopGuestScreenProps) {
     const state = useSessionState(session);
     const [video, setVideo] = useState<HTMLVideoElement | null>(null);
     const [needsTap, setNeedsTap] = useState(false);
@@ -138,6 +140,7 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
                         Back
                     </button>
                 )}
+                {endScreenExtra}
             </div>
         );
     }
