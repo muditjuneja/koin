@@ -85,6 +85,11 @@ export interface KoinTranslations {
         insertCoin: string;
         insertCoinTitle: string;
         controlsHintTitle: string;
+        coopJoinedTitle: string;
+        coopPlayerJoined: string;
+        coopSpectatorJoined: string;
+        coopGuestLeft: string;
+        coopGuestFallbackName: string;
         controlsSaved: string;
         controlsReset: string;
     };

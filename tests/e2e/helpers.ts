@@ -24,7 +24,8 @@ export const IDLE = row();
  */
 export async function readGrid(page: Page, target: Locator): Promise<string[] | null> {
     const isVideo = await target.evaluate((el) => el.tagName === 'VIDEO');
-    const png = isVideo ? null : (await target.screenshot()).toString('base64');
+    // Toasts (e.g. "Ada joined") can sit over the canvas; the grid is about what the game drew
+    const png = isVideo ? null : (await target.screenshot({ style: '[data-koin-toasts] { display: none !important; }' })).toString('base64');
     return target.evaluate(async (el, b64) => {
         let source: CanvasImageSource;
         let w: number;

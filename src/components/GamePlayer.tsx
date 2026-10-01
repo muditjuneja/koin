@@ -21,6 +21,7 @@ import ErrorBoundary from './UI/ErrorBoundary';
 import { useGamePlayer } from '../hooks/useGamePlayer';
 import { usePlayerPersistence } from '../hooks/usePlayerPersistence';
 import { useCoopHostBinding } from '../hooks/useCoopHostBinding';
+import { useCoopPeerNotifications } from '../hooks/useCoopPeerNotifications';
 import { GamePlayerProps } from './types';
 import { KeyboardMapping } from '../lib/controls';
 import { sendTelemetry } from '../lib/telemetry';
@@ -78,6 +79,7 @@ const GamePlayerInner = memo(function GamePlayerInner(
         isMobile,
         isFullscreen,
         toasts,
+        showToast,
         dismissToast,
         raSidebarOpen,
         setRaSidebarOpen,
@@ -190,6 +192,7 @@ const GamePlayerInner = memo(function GamePlayerInner(
         isPaused,
         isRewinding,
     });
+    useCoopPeerNotifications(props.coop, showToast);
     const isCoopActive = coopGuests > 0;
     const coopRestrictions = useMemo(() => ({
         isCoopActive,

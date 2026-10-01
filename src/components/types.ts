@@ -231,9 +231,18 @@ export interface CoopEmulatorHandle {
  * so the main bundle never imports netplay code; `CoopHostSession` from
  * `koin.js/netplay` satisfies it.
  */
+/** A guest as the host's player sees it (a subset of the netplay session's peer state). */
+export interface CoopPeerSummary {
+    peerId: string;
+    role: 'player' | 'spectator';
+    slot?: number;
+    name?: string;
+    connected: boolean;
+}
+
 export interface CoopHostBinding {
-    readonly state: { guestsConnected: number };
-    subscribe(listener: (state: { guestsConnected: number }) => void): () => void;
+    readonly state: { guestsConnected: number; peers?: readonly CoopPeerSummary[] };
+    subscribe(listener: (state: { guestsConnected: number; peers?: readonly CoopPeerSummary[] }) => void): () => void;
     attachEmulator(emulator: CoopEmulatorHandle): () => void;
     announce?(event: 'rewind' | 'load-state' | 'speed-change' | 'paused' | 'resumed'): void;
 }

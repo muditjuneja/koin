@@ -108,6 +108,7 @@ export function useGamePlayer(props: GamePlayerProps) {
         isMobile,
         isFullscreen,
         toasts,
+        showToast,
         dismissToast,
         raSidebarOpen,
         setRaSidebarOpen,
