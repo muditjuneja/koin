@@ -13,6 +13,7 @@ describe('Server-Safety Boundary Contract', () => {
         expect(systemsSrc.SYSTEMS).toBeInstanceOf(Array);
         expect(typeof systemsSrc.getSystem).toBe('function');
         expect(typeof systemsSrc.normalizeSystemKey).toBe('function');
+        expect(systemsSrc.coopMaxPlayersFor({ system: 'GBA' })).toBe(1);
         expect(typeof systemsSrc.getMaxFileSizeMB).toBe('function');
         expect(typeof systemsSrc.getCore).toBe('function');
 
@@ -33,7 +34,7 @@ describe('Server-Safety Boundary Contract', () => {
                 expect(['getSystem', 'getSystemByKey', 'getSystemFromExtension', 'getSystemByDbName',
                     'getCore', 'getCoreSource', 'getDBSystemNames', 'isSystemSupported',
                     'getSupportedExtensions', 'getSystemsList', 'detectSystem', 'systemsMatch',
-                    'normalizeSystemKey', 'getMaxFileSizeMB'
+                    'normalizeSystemKey', 'getMaxFileSizeMB', 'coopMaxPlayersFor'
                 ]).toContain(exp);
             }
         }
