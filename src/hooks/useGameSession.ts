@@ -4,7 +4,7 @@ import { useKoinTranslation } from './useKoinTranslation';
 import { useGamepad } from './useGamepad';
 import { useVolume } from './useVolume';
 import { useControls } from './useControls';
-import { loadAllGamepadMappings } from '../lib/controls';
+import { loadAllGamepadMappings, getControlsHint } from '../lib/controls';
 import { suppressEmulatorWarnings } from '../lib/game-player-utils';
 import { GamePlayerProps } from '../components/types';
 
@@ -34,8 +34,34 @@ export function useGameSession(props: UseGameSessionProps) {
 
     const t = useKoinTranslation();
 
+    // Co-op: whether guests are connected right now, read at click time by
+    // actions that would restart the emulator (and drop them).
+    const coopActiveRef = useRef(false);
+    useEffect(() => {
+        const coop = props.coop;
+        coopActiveRef.current = (coop?.state.guestsConnected ?? 0) > 0;
+        if (!coop) return;
+        return coop.subscribe((state) => {
+            coopActiveRef.current = state.guestsConnected > 0;
+        });
+    }, [props.coop]);
+
+    // The game's audio only exists after its first sound; co-op hosting needs
+    // to know when it appears so guests can hear it.
+    const audioListenersRef = useRef(new Set<() => void>());
+    const onAudioAvailable = useCallback((listener: () => void) => {
+        audioListenersRef.current.add(listener);
+        return () => {
+            audioListenersRef.current.delete(listener);
+        };
+    }, []);
+
     // Controls management
     const { controls, saveControls } = useControls(system, showToast);
+    // Read at emulator start; the hint shows once per player, not again after soft restarts
+    const controlsRef = useRef(controls);
+    controlsRef.current = controls;
+    const controlsHintShownRef = useRef(false);
 
     // Modals state
     const [gamepadModalOpen, setGamepadModalOpen] = useState(false);
@@ -52,7 +78,10 @@ export function useGameSession(props: UseGameSessionProps) {
                     duration: 4000,
                     action: {
                         label: 'Configure',
-                        onClick: () => setGamepadModalOpen(true),
+                        // Saving a remap restarts the emulator, which would drop co-op guests.
+                        onClick: () => {
+                            if (!coopActiveRef.current) setGamepadModalOpen(true);
+                        },
                     },
                 }
             );
@@ -80,7 +109,8 @@ export function useGameSession(props: UseGameSessionProps) {
 
     // Soft restart state — logic defined after nostalgist hook below
     const savedStateForRestart = useRef<Uint8Array | null>(null);
-    const [softRestartPending, setSoftRestartPending] = useState(false);
+    // Why a soft restart is queued: new controls (announced with a toast) or a co-op change.
+    const [softRestartPending, setSoftRestartPending] = useState<false | 'controls' | 'coop'>(false);
 
     // RetroAchievements: `raUser` (login/session state used to drive the RA sidebar UI)
     // and `retroAchievementsConfig` (what actually gets wired into the RetroArch core's
@@ -114,6 +144,8 @@ export function useGameSession(props: UseGameSessionProps) {
         keyboardControls: controls,
 
         gamepadBindings: gamepadBindings.length > 0 ? gamepadBindings : undefined,
+        coop: !!props.coop,
+        onGainNodeReady: () => audioListenersRef.current.forEach((listener) => listener()),
         retroAchievements: resolvedRetroAchievementsConfig,
         shader: props.shader,
         onReady: () => {
@@ -121,18 +153,15 @@ export function useGameSession(props: UseGameSessionProps) {
             onSessionStart?.();
             onReady?.();
 
-            // Show coin hint for arcade systems
-            const arcadeSystems = ['arcade', 'neogeo', 'fba', 'mame'];
-            if (arcadeSystems.includes(system.toLowerCase())) {
+            // Which key starts / inserts a coin / resets varies by system: say so once
+            const hint = controlsHintShownRef.current ? null : getControlsHint(system, controlsRef.current);
+            if (hint) {
+                controlsHintShownRef.current = true;
                 setTimeout(() => {
-                    showToast(
-                        t.notifications.insertCoin,
-                        'info',
-                        {
-                            title: t.notifications.insertCoinTitle,
-                            duration: 5000,
-                        }
-                    );
+                    showToast(hint.message, 'info', {
+                        title: hint.coin ? t.notifications.insertCoinTitle : t.notifications.controlsHintTitle,
+                        duration: 6000,
+                    });
                 }, 1500); // Delay to let the game load first
             }
         },
@@ -198,7 +227,7 @@ export function useGameSession(props: UseGameSessionProps) {
         setGamepadBindingsVersion(v => v + 1);
 
         if (isRunning) {
-            setSoftRestartPending(true);
+            setSoftRestartPending('controls');
         }
     }, [status, nostalgist]);
 
@@ -220,11 +249,14 @@ export function useGameSession(props: UseGameSessionProps) {
     // Effect: runs after React renders with updated bindings → performs the actual restart
     useEffect(() => {
         if (!softRestartPending) return;
+        const reason = softRestartPending;
         setSoftRestartPending(false);
 
         const doSoftRestart = async () => {
             try {
-                showToastRef.current(tRef.current.notifications.controlsSaved, 'info', { duration: 2000 });
+                if (reason === 'controls') {
+                    showToastRef.current(tRef.current.notifications.controlsSaved, 'info', { duration: 2000 });
+                }
 
                 await nostalgistRef.current.restart();
 
@@ -244,6 +276,29 @@ export function useGameSession(props: UseGameSessionProps) {
 
         doSoftRestart();
     }, [softRestartPending]);
+
+    // Hosting co-op changes RetroArch's input setup (players 2-4 on the guests'
+    // virtual pads, the multitap), which only applies when the core boots. When
+    // the coop prop arrives or goes away after that, boot again into the new
+    // setup: re-prepare a game that hasn't started yet, or soft-restart a running
+    // one from a save state so the player keeps their place.
+    const coopEnabled = !!props.coop;
+    const { preparedForCoop } = nostalgist;
+    const coopReconfigPendingRef = useRef(false);
+    useEffect(() => {
+        if (status === 'loading') coopReconfigPendingRef.current = false;
+        if (preparedForCoop === null || preparedForCoop === coopEnabled || coopReconfigPendingRef.current) return;
+        if (status === 'ready') {
+            coopReconfigPendingRef.current = true;
+            nostalgistRef.current.stop(); // back to idle; the prepare loop boots it with the new setup
+        } else if (status === 'running' || status === 'paused') {
+            coopReconfigPendingRef.current = true;
+            void nostalgistRef.current.saveState().then((stateData) => {
+                savedStateForRestart.current = stateData ?? null;
+                setSoftRestartPending('coop');
+            });
+        }
+    }, [coopEnabled, preparedForCoop, status]);
 
     // Hardcore Restrictions
     const hardcoreRestrictions = useMemo(() => {
@@ -270,5 +325,6 @@ export function useGameSession(props: UseGameSessionProps) {
         setControlsModalOpen,
         hardcoreRestrictions,
         reloadGamepadBindings,
+        onAudioAvailable,
     };
 }

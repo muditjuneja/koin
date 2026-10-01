@@ -1,5 +1,6 @@
 import { useCallback, MutableRefObject } from 'react';
 import { Nostalgist } from 'nostalgist';
+import { PlayerIndex } from '../../lib/controls';
 
 interface UseEmulatorInputProps {
     nostalgistRef: MutableRefObject<Nostalgist | null>;
@@ -7,8 +8,9 @@ interface UseEmulatorInputProps {
 
 interface UseEmulatorInputReturn {
     pressKey: (key: string) => void;
-    pressDown: (button: string) => void;
-    pressUp: (button: string) => void;
+    /** Press and hold a button via the player's keyboard binding. `player` defaults to 1. */
+    pressDown: (button: string, player?: PlayerIndex) => void;
+    pressUp: (button: string, player?: PlayerIndex) => void;
 }
 
 export function useEmulatorInput({ nostalgistRef }: UseEmulatorInputProps): UseEmulatorInputReturn {
@@ -24,22 +26,23 @@ export function useEmulatorInput({ nostalgistRef }: UseEmulatorInputProps): UseE
     }, [nostalgistRef]);
 
     // Press and hold a button
-    const pressDown = useCallback((button: string) => {
+    const pressDown = useCallback((button: string, player?: PlayerIndex) => {
         if (!nostalgistRef.current) return;
 
         try {
-            (nostalgistRef.current as any).pressDown(button);
+            // Nostalgist's two-argument form ignores `player`; only the object form routes it.
+            nostalgistRef.current.pressDown({ button, player });
         } catch (err) {
             console.error('[Nostalgist] Press down error:', err);
         }
     }, [nostalgistRef]);
 
     // Release a button
-    const pressUp = useCallback((button: string) => {
+    const pressUp = useCallback((button: string, player?: PlayerIndex) => {
         if (!nostalgistRef.current) return;
 
         try {
-            (nostalgistRef.current as any).pressUp(button);
+            nostalgistRef.current.pressUp({ button, player });
         } catch (err) {
             console.error('[Nostalgist] Press up error:', err);
         }
@@ -51,4 +54,3 @@ export function useEmulatorInput({ nostalgistRef }: UseEmulatorInputProps): UseE
         pressUp,
     };
 }
-

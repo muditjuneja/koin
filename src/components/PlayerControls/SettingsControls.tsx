@@ -25,6 +25,11 @@ interface SettingsControlsProps {
     systemColor?: string;
     gamepadCount?: number;
     hardcoreRestrictions?: RAHardcodeRestrictions;
+    coopRestrictions?: {
+        canChangeShader?: boolean;
+        canOpenControlsModal?: boolean;
+        canOpenGamepadModal?: boolean;
+    };
     raConnected?: boolean;
     raGameFound?: boolean;
     raAchievementCount?: number;
@@ -47,6 +52,7 @@ export const SettingsControls = memo(function SettingsControls({
     systemColor = '#00FF41',
     gamepadCount = 0,
     hardcoreRestrictions,
+    coopRestrictions,
     raConnected = false,
     raGameFound = false,
     raAchievementCount = 0,
@@ -54,6 +60,9 @@ export const SettingsControls = memo(function SettingsControls({
     isMobile = false,
 }: SettingsControlsProps & { isMobile?: boolean }) {
     const t = useKoinTranslation();
+    const shaderBlocked = coopRestrictions?.canChangeShader === false;
+    const controlsBlocked = coopRestrictions?.canOpenControlsModal === false;
+    const gamepadBlocked = coopRestrictions?.canOpenGamepadModal === false;
 
     // Build gamepad indicator text - simple replacement
     const gamepadIndicatorText = gamepadCount > 0
@@ -67,13 +76,16 @@ export const SettingsControls = memo(function SettingsControls({
     return (
         <div className="flex flex-wrap items-center justify-center gap-4 w-full sm:w-auto sm:flex-nowrap sm:gap-3 flex-shrink-0">
             {/* Shader Selector */}
-            <ShaderDropdown
-                currentShader={currentShader}
-                onShaderChange={onShaderChange}
-                isRunning={isRunning}
-                systemColor={systemColor}
-                disabled={disabled}
-            />
+            <div className="relative group">
+                <ShaderDropdown
+                    currentShader={currentShader}
+                    onShaderChange={onShaderChange}
+                    isRunning={isRunning}
+                    systemColor={systemColor}
+                    disabled={disabled || shaderBlocked}
+                />
+                <HardcoreTooltip show={shaderBlocked} message={t.common.disabledDuringCoop} />
+            </div>
 
             {/* Help / Shortcuts button - Hide on mobile */}
             {!isMobile && onShowShortcuts && (
@@ -86,14 +98,24 @@ export const SettingsControls = memo(function SettingsControls({
             )}
 
             {/* Controls/Keys button */}
-            <ControlButton onClick={onControls} icon={Gamepad2} label={t.controls.keys} disabled={disabled} systemColor={systemColor} />
+            <div className="relative group">
+                <ControlButton
+                    onClick={controlsBlocked ? undefined : onControls}
+                    icon={Gamepad2}
+                    label={t.controls.keys}
+                    disabled={disabled || controlsBlocked}
+                    systemColor={systemColor}
+                />
+                <HardcoreTooltip show={controlsBlocked} message={t.common.disabledDuringCoop} />
+            </div>
 
             {/* Gamepad indicator - shows connected controllers OR hint to press button */}
             {gamepadCount > 0 ? (
                 <button
-                    onClick={onGamepadSettings}
-                    className="relative group flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/10 flex-shrink-0"
-                    title={gamepadConnectedTitle}
+                    onClick={gamepadBlocked ? undefined : onGamepadSettings}
+                    disabled={gamepadBlocked}
+                    className={`relative group flex flex-col items-center gap-1 px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/10 flex-shrink-0 ${gamepadBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={gamepadBlocked ? t.common.disabledDuringCoop : gamepadConnectedTitle}
                 >
                     <div className="relative">
                         <Joystick size={20} style={{ color: systemColor }} className="transition-transform group-hover:scale-110" />
@@ -110,9 +132,10 @@ export const SettingsControls = memo(function SettingsControls({
             ) : (
                 /* Neo-brutalist hint for users with no detected gamepad */
                 <button
-                    onClick={onGamepadSettings}
-                    className="relative group flex-col items-center gap-1 px-3 py-2 transition-all duration-200 flex-shrink-0"
-                    title={t.controls.noGamepad}
+                    onClick={gamepadBlocked ? undefined : onGamepadSettings}
+                    disabled={gamepadBlocked}
+                    className={`relative group flex-col items-center gap-1 px-3 py-2 transition-all duration-200 flex-shrink-0 ${gamepadBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={gamepadBlocked ? t.common.disabledDuringCoop : t.controls.noGamepad}
                     style={{
                         border: '2px dashed #6b7280',
                         backgroundColor: 'transparent',

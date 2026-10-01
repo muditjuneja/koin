@@ -29,7 +29,7 @@ describe('usePlayerPersistence Hook', () => {
         const { result } = renderHook(() => usePlayerPersistence());
 
         expect(result.current.isLoaded).toBe(true);
-        expect(result.current.settings.volume).toBe(1);
+        expect(result.current.settings.volume).toBe(100);
         expect(result.current.settings.muted).toBe(false);
         expect(result.current.settings.shader).toBe('');
         expect(result.current.settings.hapticsEnabled).toBe(true);
@@ -37,7 +37,7 @@ describe('usePlayerPersistence Hook', () => {
 
     it('loads saved settings from localStorage on mount', () => {
         mockStorage['koin-player-settings'] = JSON.stringify({
-            volume: 0.8,
+            volume: 65,
             muted: true,
             shader: 'crt/crt-lottes',
             showPerformanceOverlay: true,
@@ -47,11 +47,22 @@ describe('usePlayerPersistence Hook', () => {
         const { result } = renderHook(() => usePlayerPersistence());
 
         expect(result.current.isLoaded).toBe(true);
-        expect(result.current.settings.volume).toBe(0.8);
+        expect(result.current.settings.volume).toBe(65);
         expect(result.current.settings.muted).toBe(true);
         expect(result.current.settings.shader).toBe('crt/crt-lottes');
         expect(result.current.settings.showPerformanceOverlay).toBe(true);
         expect(result.current.settings.hapticsEnabled).toBe(false);
+    });
+
+    it('migrates a volume saved on the old 0-1 default to percent', () => {
+        mockStorage['koin-player-settings'] = JSON.stringify({ volume: 1, shader: 'crt/crt-lottes' });
+        expect(renderHook(() => usePlayerPersistence()).result.current.settings.volume).toBe(100);
+
+        mockStorage['koin-player-settings'] = JSON.stringify({ volume: 0.8 });
+        expect(renderHook(() => usePlayerPersistence()).result.current.settings.volume).toBe(80);
+
+        mockStorage['koin-player-settings'] = JSON.stringify({ volume: 0 });
+        expect(renderHook(() => usePlayerPersistence()).result.current.settings.volume).toBe(0);
     });
 
     it('updates settings, persists to storage, and notifies callback', () => {
@@ -87,7 +98,7 @@ describe('usePlayerPersistence Hook', () => {
         const { result } = renderHook(() => usePlayerPersistence());
 
         expect(result.current.isLoaded).toBe(true);
-        expect(result.current.settings.volume).toBe(1); // Default preserved
+        expect(result.current.settings.volume).toBe(100); // Default preserved
         expect(consoleErrorSpy).toHaveBeenCalled();
         consoleErrorSpy.mockRestore();
     });

@@ -91,6 +91,15 @@ export interface GamePlayerProps {
 
     // Internationalization
     translations?: RecursivePartial<KoinTranslations>;
+
+    /**
+     * Host netplay co-op: pass a session from `koin.js/netplay` (e.g.
+     * `useCoopHost`). The emulator is prepared for remote players and
+     * connected to the session while it runs; actions that would restart the
+     * emulator (shader change, reset, remapping) are blocked while guests are
+     * connected.
+     */
+    coop?: CoopHostBinding;
 }
 
 export interface PlayerControlsProps {
@@ -115,6 +124,8 @@ export interface PlayerControlsProps {
     disabled?: boolean;
     // Hardcore mode restrictions
     hardcoreRestrictions?: RAHardcodeRestrictions;
+    // Co-op session restrictions (see GamePlayerProps.coop)
+    coopRestrictions?: CoopRestrictions;
     raConnected?: boolean;
     raGameFound?: boolean;
     raAchievementCount?: number;
@@ -196,4 +207,42 @@ export interface RAHardcodeRestrictions {
     canUseRewind: boolean;
     canUseCheats: boolean;
     canUseSlowMotion: boolean;
+}
+
+/** Actions blocked while co-op guests are connected — each would restart the emulator and drop them. */
+export interface CoopRestrictions {
+    isCoopActive: boolean;
+    canChangeShader: boolean;
+    canManualRestart: boolean;
+    canOpenControlsModal: boolean;
+    canOpenGamepadModal: boolean;
+}
+
+/** The running emulator, as handed to a co-op host session. */
+export interface CoopEmulatorHandle {
+    canvas: HTMLCanvasElement;
+    getEmscripten(): any;
+    getAudioStream(): MediaStream | null;
+    onAudioAvailable?(listener: () => void): () => void;
+}
+
+/**
+ * What GamePlayer needs from a co-op host session. Declared structurally here
+ * so the main bundle never imports netplay code; `CoopHostSession` from
+ * `koin.js/netplay` satisfies it.
+ */
+/** A guest as the host's player sees it (a subset of the netplay session's peer state). */
+export interface CoopPeerSummary {
+    peerId: string;
+    role: 'player' | 'spectator';
+    slot?: number;
+    name?: string;
+    connected: boolean;
+}
+
+export interface CoopHostBinding {
+    readonly state: { guestsConnected: number; peers?: readonly CoopPeerSummary[] };
+    subscribe(listener: (state: { guestsConnected: number; peers?: readonly CoopPeerSummary[] }) => void): () => void;
+    attachEmulator(emulator: CoopEmulatorHandle): () => void;
+    announce?(event: 'rewind' | 'load-state' | 'speed-change' | 'paused' | 'resumed'): void;
 }

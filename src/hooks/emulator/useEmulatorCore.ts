@@ -5,13 +5,25 @@ import { PERFORMANCE_TIER_1_SYSTEMS, PERFORMANCE_TIER_2_SYSTEMS } from '../../li
 import {
     KeyboardMapping,
     GamepadMapping,
-    buildRetroArchConfig
+    buildRetroArchConfig,
+    coopRetroArchConfig,
+    coopRemapFile,
 } from '../../lib/controls';
 import { EmulatorStatus, SpeedMultiplier, RetroAchievementsConfig, CustomCoreSource } from './types';
 import { getCachedRom, fetchAndCacheRom } from '../../lib/rom-cache';
 import { getSystem } from '../../lib/systems';
 import { describeRomLoadError } from '../../lib/game-player-utils';
 
+/**
+ * Builds the Error to forward to onError, given the friendlier message
+ * already computed for the on-screen overlay. Only re-wraps when the
+ * message actually changed, so the original Error identity/stack is
+ * preserved otherwise.
+ */
+function toReportedError(err: unknown, friendlyMessage: string): Error {
+    if (!(err instanceof Error)) return new Error(friendlyMessage);
+    return err.message === friendlyMessage ? err : Object.assign(new Error(friendlyMessage), { cause: err });
+}
 
 interface UseEmulatorCoreProps {
     system: string;
@@ -23,6 +35,12 @@ interface UseEmulatorCoreProps {
     getCanvasElement?: () => HTMLCanvasElement | null;
     keyboardControls?: KeyboardMapping;
     gamepadBindings?: GamepadMapping[];
+    /**
+     * Prepare the emulator to host netplay co-op: players 2-4 are bound to
+     * the standard gamepad layout remote guests are injected as, and the
+     * core's multitap is enabled where 4 players need one.
+     */
+    coop?: boolean;
     retroAchievements?: RetroAchievementsConfig;
     initialVolume?: number;
     romFileName?: string;
@@ -52,6 +70,8 @@ interface UseEmulatorCoreReturn {
     resize: (size: { width: number; height: number }) => void;
     getNostalgistInstance: () => Nostalgist | null;
     isPerformanceMode: boolean;
+    /** Whether the current emulator was prepared to host co-op; null until the first prepare. */
+    preparedForCoop: boolean | null;
 }
 
 export function useEmulatorCore({
@@ -64,6 +84,7 @@ export function useEmulatorCore({
     getCanvasElement,
     keyboardControls,
     gamepadBindings,
+    coop = false,
     retroAchievements,
     initialVolume = 100,
     romFileName,
@@ -77,8 +98,10 @@ export function useEmulatorCore({
     const [speed, setSpeedState] = useState<SpeedMultiplier>(1);
     const [isFastForwardOn, setIsFastForwardOn] = useState(false);
     const [isPerformanceMode, setIsPerformanceMode] = useState(false);
+    const [preparedForCoop, setPreparedForCoop] = useState<boolean | null>(null);
 
     const nostalgistRef = useRef<Nostalgist | null>(null);
+    const getNostalgistInstance = useCallback(() => nostalgistRef.current, []);
     const isStartingRef = useRef(false); // Prevent double start
 
     // Keep callbacks in refs so caller inline functions do not invalidate prepare, start, or screenshot callbacks
@@ -183,6 +206,7 @@ export function useEmulatorCore({
         try {
             setStatus('loading');
             setError(null);
+            setPreparedForCoop(coop);
 
             // `coreOverride` may be a plain core name (must be one Nostalgist ships out
             // of the box), or a fully custom { name, js, wasm } source — see CustomCoreSource.
@@ -220,10 +244,10 @@ export function useEmulatorCore({
             }
 
             // Build input configuration from custom controls
-            const inputConfig = buildRetroArchConfig({
-                keyboard: keyboardControls,
-                gamepads: gamepadBindings,
-            });
+            const inputConfig = {
+                ...buildRetroArchConfig({ keyboard: keyboardControls, gamepads: gamepadBindings }),
+                ...(coop ? coopRetroArchConfig() : {}),
+            };
 
             // 2. Get optimized config based on system tier
             const currentSystem = system;
@@ -332,6 +356,15 @@ export function useEmulatorCore({
 
             const nostalgist = await Nostalgist.prepare(prepareOptions);
 
+            // RetroArch reads per-port device types (multitap) only from remap
+            // files, so write it between prepare() and start().
+            const remap = coop ? coopRemapFile(typeof core === 'string' ? core : core.name) : null;
+            if (remap) {
+                const fs = nostalgist.getEmscriptenFS();
+                fs.mkdirTree(remap.path.slice(0, remap.path.lastIndexOf('/')));
+                fs.writeFile(remap.path, remap.contents);
+            }
+
             nostalgistRef.current = nostalgist;
 
             setStatus('ready');
@@ -344,16 +377,10 @@ export function useEmulatorCore({
             setStatus('error');
             // Forward the friendlier message to onError too — not just the on-screen
             // overlay — since consumers commonly surface err.message in their own
-            // toasts/logging. Only re-wrap when the message actually changed, so the
-            // original Error identity/stack is preserved otherwise.
-            const reportedError = err instanceof Error
-                ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
-                : new Error(errorMessage);
-            onErrorRef.current?.(reportedError);
+            // toasts/logging.
+            onErrorRef.current?.(toReportedError(err, errorMessage));
         }
-    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, initialVolume, retroAchievements, romFileName, romId, shader]);
-
-
+    }, [system, romUrl, coreOverride, biosUrl, initialState, keyboardControls, gamepadBindings, coop, initialVolume, retroAchievements, romFileName, romId, shader]);
 
     // Start the emulator (must be called after prepare, ideally from user click)
     const start = useCallback(async () => {
@@ -398,10 +425,7 @@ export function useEmulatorCore({
             console.error('[Nostalgist] Start error:', err);
             setError(errorMessage);
             setStatus('error');
-            const reportedError = err instanceof Error
-                ? (err.message === errorMessage ? err : Object.assign(new Error(errorMessage), { cause: err }))
-                : new Error(errorMessage);
-            onErrorRef.current?.(reportedError);
+            onErrorRef.current?.(toReportedError(err, errorMessage));
         } finally {
             isStartingRef.current = false;
         }
@@ -599,7 +623,8 @@ export function useEmulatorCore({
         setSpeed,
         screenshot,
         resize,
-        getNostalgistInstance: () => nostalgistRef.current,
+        getNostalgistInstance,
         isPerformanceMode,
+        preparedForCoop,
     };
 }

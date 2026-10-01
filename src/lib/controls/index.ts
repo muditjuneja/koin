@@ -44,6 +44,9 @@ export {
     formatGamepadButton,
 } from './labels';
 
+// Game-start hints
+export { getControlsHint, type ControlsHint } from './hints';
+
 // Presets
 export {
     CONSOLE_CAPABILITIES,
@@ -70,3 +73,6 @@ export {
     gamepadToRetroArchConfig,
     buildRetroArchConfig,
 } from './retroarch';
+
+// Netplay co-op
+export { coopRetroArchConfig, coopMaxPlayers, coopMaxPlayersFor, coopRemapFile } from './coop';
