@@ -115,6 +115,15 @@ export async function waitFor<T>(page: Page, fn: () => T | Promise<T>, what: str
     }
 }
 
+/**
+ * Presses the start screen's PLAY button. Matched exactly: the player's
+ * control bar has its own "Play" toggle, and depending on timing both can be
+ * on the page, which makes a loose /play/i match ambiguous.
+ */
+export async function pressStart(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'PLAY', exact: true }).click();
+}
+
 export interface HostPage {
     page: Page;
     room: string;
@@ -128,7 +137,7 @@ export async function startHost(browser: Browser, baseUrl: string, signalUrl: st
     const params = new URLSearchParams({ signal: signalUrl, ...query });
     await page.goto(`${baseUrl}/host.html?${params}`);
     await waitFor(page, () => (window as any).__host?.state.status === 'hosting', 'host signaling');
-    await page.getByRole('button', { name: /play/i }).click();
+    await pressStart(page);
     await waitFor(page, () => (window as any).__host?.state.emulatorAttached === true, 'emulator attached to co-op session', 30_000);
     const room = await page.evaluate(() => (window as any).__host.state.roomCode as string);
     const canvas = page.locator('#canvas');

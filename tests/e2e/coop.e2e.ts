@@ -8,7 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { chromium, type Browser } from 'playwright';
-import { guestAudioLevel, IDLE, NES_BUTTONS, readGrid, row, startGuest, startHost, waitFor, waitForGrid } from './helpers';
+import { guestAudioLevel, IDLE, NES_BUTTONS, pressStart, readGrid, row, startGuest, startHost, waitFor, waitForGrid } from './helpers';
 
 const baseUrl = inject('baseUrl');
 const signalUrl = inject('signalUrl');
@@ -52,7 +52,7 @@ describe('netplay co-op', () => {
         const page = await context.newPage();
         page.on('pageerror', (err) => console.error('[host pageerror]', err.message));
         await page.goto(`${baseUrl}/host.html?${new URLSearchParams({ signal: signalUrl, late: '1' })}`);
-        await page.getByRole('button', { name: /play/i }).click();
+        await pressStart(page);
         const canvas = page.locator('#canvas');
         // Single-player setup: no Four Score, so the game reads players 3-4 as all ones.
         await waitForGrid(page, canvas, [IDLE, IDLE, row(...NES_BUTTONS), row(...NES_BUTTONS)], 30_000);
