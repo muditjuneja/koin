@@ -90,14 +90,37 @@ export default function CoopPanel({
                         <div className="flex-1 bg-black/40 rounded-lg px-3 py-2 font-mono text-lg tracking-[0.3em] text-center text-white">
                             {roomCode}
                         </div>
-                        <button
-                            onClick={handleCopy}
-                            className="p-2 rounded-lg bg-black/40 hover:bg-black/60 transition-colors text-gray-300 hover:text-white flex-shrink-0"
-                            title="Copy join link"
-                        >
-                            {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
-                        </button>
+                        {!joinUrl && (
+                            <button
+                                onClick={handleCopy}
+                                className="p-2 rounded-lg bg-black/40 hover:bg-black/60 transition-colors text-gray-300 hover:text-white flex-shrink-0"
+                                title="Copy room code"
+                            >
+                                {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                            </button>
+                        )}
                     </div>
+
+                    {/* Invite link: shown in full so it can be read out or copied by hand too */}
+                    {joinUrl && (
+                        <div className="mt-3 space-y-2">
+                            <p className="text-xs text-gray-400">Send this link to friends to join:</p>
+                            <input
+                                readOnly
+                                value={joinUrl}
+                                onFocus={(e) => e.currentTarget.select()}
+                                aria-label="Invite link"
+                                className="w-full bg-black/40 rounded-lg px-3 py-2 font-mono text-xs text-gray-200 outline-none focus:ring-1 focus:ring-white/30"
+                            />
+                            <button
+                                onClick={handleCopy}
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors bg-white/10 hover:bg-white/20 text-white"
+                            >
+                                {copied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                                {copied ? 'Copied!' : 'Copy invite link'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content */}
