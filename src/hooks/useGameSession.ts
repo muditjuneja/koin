@@ -4,7 +4,7 @@ import { useKoinTranslation } from './useKoinTranslation';
 import { useGamepad } from './useGamepad';
 import { useVolume } from './useVolume';
 import { useControls } from './useControls';
-import { loadAllGamepadMappings } from '../lib/controls';
+import { loadAllGamepadMappings, getControlsHint } from '../lib/controls';
 import { suppressEmulatorWarnings } from '../lib/game-player-utils';
 import { GamePlayerProps } from '../components/types';
 
@@ -58,6 +58,10 @@ export function useGameSession(props: UseGameSessionProps) {
 
     // Controls management
     const { controls, saveControls } = useControls(system, showToast);
+    // Read at emulator start; the hint shows once per player, not again after soft restarts
+    const controlsRef = useRef(controls);
+    controlsRef.current = controls;
+    const controlsHintShownRef = useRef(false);
 
     // Modals state
     const [gamepadModalOpen, setGamepadModalOpen] = useState(false);
@@ -149,18 +153,15 @@ export function useGameSession(props: UseGameSessionProps) {
             onSessionStart?.();
             onReady?.();
 
-            // Show coin hint for arcade systems
-            const arcadeSystems = ['arcade', 'neogeo', 'fba', 'mame'];
-            if (arcadeSystems.includes(system.toLowerCase())) {
+            // Which key starts / inserts a coin / resets varies by system: say so once
+            const hint = controlsHintShownRef.current ? null : getControlsHint(system, controlsRef.current);
+            if (hint) {
+                controlsHintShownRef.current = true;
                 setTimeout(() => {
-                    showToast(
-                        t.notifications.insertCoin,
-                        'info',
-                        {
-                            title: t.notifications.insertCoinTitle,
-                            duration: 5000,
-                        }
-                    );
+                    showToast(hint.message, 'info', {
+                        title: hint.coin ? t.notifications.insertCoinTitle : t.notifications.controlsHintTitle,
+                        duration: 6000,
+                    });
                 }, 1500); // Delay to let the game load first
             }
         },

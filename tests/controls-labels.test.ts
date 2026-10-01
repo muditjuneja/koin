@@ -44,10 +44,10 @@ describe('Control Labels & UI Formatters', () => {
         expect(formatKeyCode('ArrowRight')).toBe('→');
 
         expect(formatKeyCode('Space')).toBe('Space');
-        expect(formatKeyCode('ShiftLeft')).toBe('Shift');
-        expect(formatKeyCode('ShiftRight')).toBe('Shift');
-        expect(formatKeyCode('ControlLeft')).toBe('Ctrl');
-        expect(formatKeyCode('AltLeft')).toBe('Alt');
+        expect(formatKeyCode('ShiftLeft')).toBe('L Shift');
+        expect(formatKeyCode('ShiftRight')).toBe('R Shift');
+        expect(formatKeyCode('ControlLeft')).toBe('L Ctrl');
+        expect(formatKeyCode('AltLeft')).toBe('L Alt');
         expect(formatKeyCode('Enter')).toBe('Enter');
         expect(formatKeyCode('Tab')).toBe('Tab');
         expect(formatKeyCode('Escape')).toBe('Esc');

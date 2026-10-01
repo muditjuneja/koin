@@ -8,6 +8,8 @@ import { useSessionState } from '../react/hooks';
 import { GuestInputController, type GuestInputOptions } from '../input/guest-input';
 import type { CoopGuestSession } from '../session/guest-session';
 import type { HostEvent } from '../transport/protocol';
+import { getControlsHint } from '../../lib/controls/hints';
+import { DEFAULT_KEYBOARD } from '../../lib/controls/defaults';
 
 export interface CoopGuestScreenProps {
     session: CoopGuestSession;
@@ -44,6 +46,8 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
     const [muted, setMuted] = useState(false);
     const [volume, setVolume] = useState(100);
     const [toast, setToast] = useState<string | null>(null);
+    const [controlsHint, setControlsHint] = useState<string | null>(null);
+    const controlsHintShownRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const mediaStream = state?.mediaStream ?? null;
     const isPlayer = state?.role !== 'spectator';
@@ -73,6 +77,19 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
         controller.attach(window);
         return () => controller.detach();
     }, [controller, isPlayer]);
+
+    // Once seated as a player, say which keys start / insert a coin on this system
+    const connectedAsPlayer = state?.status === 'connected' && isPlayer;
+    useEffect(() => {
+        if (!connectedAsPlayer || controlsHintShownRef.current) return;
+        controlsHintShownRef.current = true;
+        setControlsHint(getControlsHint(system, input?.keyboard ?? DEFAULT_KEYBOARD)?.message ?? null);
+    }, [connectedAsPlayer, system, input?.keyboard]);
+    useEffect(() => {
+        if (!controlsHint) return;
+        const timer = setTimeout(() => setControlsHint(null), 6000);
+        return () => clearTimeout(timer);
+    }, [controlsHint]);
 
     const lastEvent = state?.lastHostEvent;
     useEffect(() => {
@@ -187,9 +204,9 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
                 </div>
             </div>
 
-            {(toast || state.hostBackgrounded) && (
+            {(toast || state.hostBackgrounded || controlsHint) && (
                 <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-lg bg-black/80 text-xs text-white">
-                    {toast ?? "The host's tab is in the background — the game may slow down"}
+                    {toast ?? (state.hostBackgrounded ? "The host's tab is in the background — the game may slow down" : controlsHint)}
                 </div>
             )}
 

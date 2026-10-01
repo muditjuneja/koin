@@ -84,6 +84,7 @@ export interface KoinTranslations {
         controllerReady: string;
         insertCoin: string;
         insertCoinTitle: string;
+        controlsHintTitle: string;
         controlsSaved: string;
         controlsReset: string;
     };

@@ -86,6 +86,7 @@ export const fr: KoinTranslations = {
         controllerReady: 'Manette prête',
         insertCoin: 'Appuyez sur SHIFT pour insérer une pièce',
         insertCoinTitle: '🪙 Insérer Pièce',
+        controlsHintTitle: '🎮 Commandes',
         controlsSaved: 'Contrôles sauvegardés',
         controlsReset: 'Contrôles réinitialisés',
     },

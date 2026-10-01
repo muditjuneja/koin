@@ -86,6 +86,7 @@ export const es: KoinTranslations = {
         controllerReady: 'Mando listo para usar',
         insertCoin: 'Pulsa SHIFT para insertar moneda',
         insertCoinTitle: '🪙 Insertar Moneda',
+        controlsHintTitle: '🎮 Controles',
         controlsSaved: 'Controles guardados',
         controlsReset: 'Controles restablecidos',
     },

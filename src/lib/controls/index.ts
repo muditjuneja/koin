@@ -44,6 +44,9 @@ export {
     formatGamepadButton,
 } from './labels';
 
+// Game-start hints
+export { getControlsHint, type ControlsHint } from './hints';
+
 // Presets
 export {
     CONSOLE_CAPABILITIES,
