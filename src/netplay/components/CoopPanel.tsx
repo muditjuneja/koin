@@ -134,6 +134,12 @@ export default function CoopPanel({
                         systemColor={systemColor}
                     />
 
+                    {slots.length === 0 && (
+                        <p className="text-xs text-gray-400 px-1 py-1">
+                            Single-player game: friends who join can watch along, but there's no controller for them.
+                        </p>
+                    )}
+
                     {slots.map((slot) => (
                         <SlotRow
                             key={slot.slot}

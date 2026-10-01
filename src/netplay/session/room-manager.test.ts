@@ -44,6 +44,13 @@ describe('RoomManager', () => {
         expect(room.join('b', 'player')).toEqual({ ok: false, reason: 'room-full' });
     });
 
+    it('is watch-only for single-player games: no slots, spectators still welcome', () => {
+        const room = new RoomManager({ maxPlayers: 1 });
+        expect(room.guestSlots).toEqual([]);
+        expect(room.join('a', 'player')).toEqual({ ok: false, reason: 'watch-only' });
+        expect(room.join('b', 'spectator')).toMatchObject({ ok: true, role: 'spectator' });
+    });
+
     it('is idempotent for a peer that asks to join twice', () => {
         const room = new RoomManager();
         const first = joinPlayer(room, 'a');

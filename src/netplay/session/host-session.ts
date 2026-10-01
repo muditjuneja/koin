@@ -9,7 +9,7 @@
  * `coop` prop, but nothing here depends on React.
  */
 
-import { coopMaxPlayers } from '../../lib/controls/coop';
+import { coopMaxPlayersFor } from '../../lib/controls/coop';
 import type { PlayerIndex } from '../../lib/controls/types';
 import { VirtualGamepadHub, type EmulatorEventSource } from '../input/virtual-gamepads';
 import { CoopPeerConnection } from '../transport/peer';
@@ -39,6 +39,8 @@ export interface CoopHostOptions {
     roomCode?: string;
     /** Core the emulator runs — decides how many players can join (2 unless the core has 4 ports or a multitap). */
     core?: string;
+    /** System being played (e.g. 'GBA'). Single-player handhelds make the room watch-only. */
+    system?: string;
     /**
      * STUN/TURN servers: a fixed list, or a provider called again when
      * credentials age or a connection fails (see turnCredentialsProvider).
@@ -66,7 +68,8 @@ export interface CoopHostState {
     status: 'idle' | 'starting' | 'hosting' | 'stopped' | 'error';
     error?: string;
     roomCode: string;
-    maxPlayers: 2 | 3 | 4;
+    /** Players including the host; 1 means guests can only watch. */
+    maxPlayers: 1 | 2 | 3 | 4;
     slots: SlotView[];
     spectators: { peerId: string; name?: string }[];
     peers: CoopHostPeer[];
@@ -109,7 +112,7 @@ export class CoopHostSession {
     private readonly peers = new Map<string, PeerEntry>();
     private readonly listeners = new Set<(state: CoopHostState) => void>();
     private readonly ladder = new DegradationLadder();
-    private readonly maxPlayers: 2 | 3 | 4;
+    private readonly maxPlayers: 1 | 2 | 3 | 4;
     private signaling: SignalingTransport | null = null;
     private emulator: CoopEmulatorHandle | null = null;
     private videoTrack: MediaStreamTrack | null = null;
@@ -129,7 +132,7 @@ export class CoopHostSession {
     constructor(private readonly options: CoopHostOptions) {
         this.ice = new IceServerSource(options.iceServers);
         this.roomCode = options.roomCode ?? generateRoomCode();
-        this.maxPlayers = coopMaxPlayers(options.core);
+        this.maxPlayers = coopMaxPlayersFor({ system: options.system, core: options.core });
         this.room = new RoomManager({ maxPlayers: this.maxPlayers, maxSpectators: options.maxSpectators, reconnectWindowMs: options.reconnectWindowMs });
         this.pads = new VirtualGamepadHub(this.room.guestSlots);
         this.snapshot = this.buildState();

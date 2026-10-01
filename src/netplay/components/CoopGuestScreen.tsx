@@ -36,6 +36,7 @@ const HOST_EVENT_TEXT: Record<HostEvent, string> = {
 
 const REJECT_TEXT: Record<string, string> = {
     'room-full': 'All player slots are taken.',
+    'watch-only': 'This is a single-player game, so friends can watch but not play.',
     'spectators-full': 'The spectator seats are full.',
     'busy': "The host's computer is at capacity right now.",
     'kicked': 'The host removed you from this session.',

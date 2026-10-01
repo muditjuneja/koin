@@ -30,11 +30,11 @@ interface SlotRecord extends SlotView {
 export type JoinResult =
     | { ok: true; role: 'player'; slot: PlayerIndex; sessionToken: string; resumed: boolean; replacedPeerId?: string }
     | { ok: true; role: 'spectator'; sessionToken: string }
-    | { ok: false; reason: 'room-full' | 'spectators-full' | 'kicked' };
+    | { ok: false; reason: 'room-full' | 'watch-only' | 'spectators-full' | 'kicked' };
 
 export interface RoomManagerOptions {
-    /** Players including the host, 2-4. Default 4. */
-    maxPlayers?: 2 | 3 | 4;
+    /** Players including the host, 1-4 (1: guests can only watch). Default 4. */
+    maxPlayers?: 1 | 2 | 3 | 4;
     /** How long a dropped guest's slot is held for them. Default 30 s. */
     reconnectWindowMs?: number;
     /** Default 3 — every spectator costs the host a full video encode. */
@@ -102,6 +102,7 @@ export class RoomManager {
                     }
                 }
             }
+            if (this.guestSlots.length === 0) return { ok: false, reason: 'watch-only' };
             const open = this.guestSlots.find((slot) => this.slots.get(slot)!.status === 'open');
             if (open === undefined) return { ok: false, reason: 'room-full' };
             const token = generateSessionToken();

@@ -75,4 +75,4 @@ export {
 } from './retroarch';
 
 // Netplay co-op
-export { coopRetroArchConfig, coopMaxPlayers, coopRemapFile } from './coop';
+export { coopRetroArchConfig, coopMaxPlayers, coopMaxPlayersFor, coopRemapFile } from './coop';

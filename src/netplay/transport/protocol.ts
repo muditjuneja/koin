@@ -123,7 +123,7 @@ export function decodeControlMessage(data: unknown): ControlMessage | null {
 export const HOST_PEER_ID = 'host';
 
 /** 'unauthorized': the signaling server refused this guest's join token. */
-export type JoinRejectReason = 'room-full' | 'spectators-full' | 'busy' | 'kicked' | 'unauthorized';
+export type JoinRejectReason = 'room-full' | 'watch-only' | 'spectators-full' | 'busy' | 'kicked' | 'unauthorized';
 
 export type SignalPayload =
     | { type: 'join'; role: 'player' | 'spectator'; sessionToken?: string; name?: string }

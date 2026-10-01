@@ -17,6 +17,7 @@
 import { PlayerIndex } from './types';
 import { DEFAULT_GAMEPAD } from './defaults';
 import { gamepadToRetroArchConfig } from './retroarch';
+import { getSystem } from '../systems';
 
 const GUEST_PLAYERS: PlayerIndex[] = [2, 3, 4];
 
@@ -78,6 +79,26 @@ const PROFILES: Record<string, CoopCoreProfile> = {
 /** How many players (host included) co-op supports on this core. Unknown cores get the 2 every console has. */
 export function coopMaxPlayers(core: string | undefined): 2 | 3 | 4 {
     return (core && PROFILES[core]?.maxPlayers) || 2;
+}
+
+/**
+ * Handhelds had one set of buttons (multiplayer meant a link cable and a
+ * second unit), so a co-op guest can only watch. Keyed by system, not core:
+ * gearsystem runs both the 2-player Master System and the Game Gear.
+ */
+const SINGLE_PLAYER_SYSTEMS = new Set([
+    'GB', 'GBC', 'GBA', 'NDS', 'VIRTUAL_BOY', 'GAME_GEAR', 'LYNX',
+    'NEOGEO_POCKET', 'NEOGEO_POCKET_COLOR', 'WONDERSWAN', 'WONDERSWAN_COLOR',
+]);
+
+/**
+ * Players (host included) co-op supports for a game. 1 means watch-only:
+ * guests can spectate but there is no controller for them.
+ */
+export function coopMaxPlayersFor({ system, core }: { system?: string; core?: string }): 1 | 2 | 3 | 4 {
+    const key = system ? getSystem(system)?.key : undefined;
+    if (key && SINGLE_PLAYER_SYSTEMS.has(key)) return 1;
+    return coopMaxPlayers(core ?? (key ? getSystem(key)?.core : undefined));
 }
 
 export function coopRemapFile(core: string | undefined): { path: string; contents: string } | null {
