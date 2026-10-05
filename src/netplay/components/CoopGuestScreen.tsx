@@ -24,6 +24,8 @@ export interface CoopGuestScreenProps {
     input?: GuestInputOptions;
     /** Extra content under "Back" once the session is over (ended, kicked, couldn't join), e.g. an app's own call to action. */
     endScreenExtra?: ReactNode;
+    /** App content drawn over the bottom of the video while connected, e.g. a sign-up prompt for anonymous viewers. */
+    overlay?: ReactNode;
 }
 
 const HOST_EVENT_TEXT: Record<HostEvent, string> = {
@@ -44,7 +46,7 @@ const REJECT_TEXT: Record<string, string> = {
 };
 
 /** A guest's whole screen: the host's stream, their controller, and connection status. */
-export default function CoopGuestScreen({ session, system, systemColor = '#00FF41', onExit, input, endScreenExtra }: CoopGuestScreenProps) {
+export default function CoopGuestScreen({ session, system, systemColor = '#00FF41', onExit, input, endScreenExtra, overlay }: CoopGuestScreenProps) {
     const state = useSessionState(session);
     const [video, setVideo] = useState<HTMLVideoElement | null>(null);
     const [needsTap, setNeedsTap] = useState(false);
@@ -210,6 +212,12 @@ export default function CoopGuestScreen({ session, system, systemColor = '#00FF4
             {state.hostBackgrounded && (
                 <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-lg bg-black/80 text-xs text-white">
                     {"The host's tab is in the background — the game may slow down"}
+                </div>
+            )}
+
+            {overlay && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-[calc(100%-2rem)] max-w-md">
+                    {overlay}
                 </div>
             )}
 
