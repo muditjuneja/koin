@@ -12,6 +12,7 @@ import { guestAudioLevel, IDLE, NES_BUTTONS, pressStart, readGrid, row, startGue
 
 const baseUrl = inject('baseUrl');
 const signalUrl = inject('signalUrl');
+const sfuConfigured = inject('sfu');
 
 let browser: Browser;
 
@@ -99,6 +100,29 @@ describe('netplay co-op', () => {
         await extra.close();
         for (const g of guests) await g.page.context().close();
         await host.page.context().close();
+    });
+
+    it('spectators fall back to a direct stream when the relay is down', async () => {
+        const host = await startHost(browser, baseUrl, signalUrl, { relay: 'fail' });
+        const spectator = await startGuest(browser, baseUrl, signalUrl, host.room, { role: 'spectator', relay: 'http' });
+        await waitFor(host.page, () => (window as any).__host.state.spectatorRelay === 'failed', 'host gave up on the relay');
+        expect(await spectator.page.evaluate(() => (window as any).__guest.state.watchingViaRelay)).toBe(false);
+        await waitForGrid(spectator.page, spectator.video, [IDLE, IDLE, IDLE, IDLE]);
+        await spectator.page.context().close();
+        await host.page.context().close();
+    });
+
+    it.skipIf(!sfuConfigured)('a spectator watches through the SFU, live', async () => {
+        const host = await startHost(browser, baseUrl, signalUrl, { relay: 'http', maxSpectators: '10' });
+        const player = await startGuest(browser, baseUrl, signalUrl, host.room);
+        const spectator = await startGuest(browser, baseUrl, signalUrl, host.room, { role: 'spectator', relay: 'http' });
+        await waitFor(host.page, () => (window as any).__host.state.spectatorRelay === 'live', 'relay live', 20_000);
+        await waitFor(spectator.page, () => (window as any).__guest.state.watchingViaRelay === true, 'spectator on the relay', 20_000);
+        // The relayed picture is live: player 2's buttons show up in what the spectator sees
+        await player.page.keyboard.down('KeyX');
+        await waitForGrid(spectator.page, spectator.video, [IDLE, row('a'), IDLE, IDLE], 20_000);
+        await player.page.keyboard.up('KeyX');
+        for (const page of [spectator.page, player.page, host.page]) await page.context().close();
     });
 
     it('a spectator watches but cannot play', async () => {

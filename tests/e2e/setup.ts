@@ -34,7 +34,50 @@ declare module 'vitest' {
     export interface ProvidedContext {
         baseUrl: string;
         signalUrl: string;
+        /** A real Cloudflare Realtime SFU app is configured (KOIN_E2E_SFU_APP_ID / KOIN_E2E_SFU_APP_TOKEN) */
+        sfu: boolean;
     }
+}
+
+const SFU_APP_ID = process.env.KOIN_E2E_SFU_APP_ID;
+const SFU_APP_TOKEN = process.env.KOIN_E2E_SFU_APP_TOKEN;
+
+/** Calls the Realtime SFU API the way a site's backend would (spectator-relay.ts). */
+async function sfu(pathname: string, method: string, body?: unknown): Promise<any> {
+    const response = await fetch(`https://rtc.live.cloudflare.com/v1/apps/${SFU_APP_ID}${pathname}`, {
+        method,
+        headers: { Authorization: `Bearer ${SFU_APP_TOKEN}`, 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`SFU ${method} ${pathname}: ${response.status} ${text}`);
+    return text ? JSON.parse(text) : null;
+}
+
+/** Stand-in backend for httpSpectatorRelay: POST /sfu/{publish,subscribe,answer}. The ticket is just the session id here. */
+async function handleRelay(operation: string, body: any, rid: string): Promise<unknown> {
+    if (operation === 'publish') {
+        const { sessionId } = await sfu('/sessions/new', 'POST');
+        const pushed = await sfu(`/sessions/${sessionId}/tracks/new`, 'POST', {
+            sessionDescription: body.offer,
+            tracks: body.tracks.map((t: { mid: string; trackName: string }) => ({ location: 'local', ...t })),
+        });
+        return { sessionId, ticket: sessionId, answer: pushed.sessionDescription };
+    }
+    if (operation === 'subscribe') {
+        const { sessionId } = await sfu('/sessions/new', 'POST');
+        const pulled = await sfu(`/sessions/${sessionId}/tracks/new`, 'POST', {
+            tracks: body.trackNames.map((trackName: string) => ({
+                location: 'remote',
+                sessionId: body.sessionId,
+                trackName,
+                ...(trackName === 'video' && { simulcast: { preferredRid: rid, priorityOrdering: 'asciibetical', ridNotAvailable: 'asciibetical' } }),
+            })),
+        });
+        return { sessionId, offer: pulled.sessionDescription };
+    }
+    await sfu(`/sessions/${body.sessionId}/renegotiate`, 'PUT', { sessionDescription: body.answer });
+    return null;
 }
 
 /** Minimal ZIP reader (stored + deflate) — enough for libretro core archives, no dependency. */
@@ -99,6 +142,23 @@ function serveStatic(): Promise<Server> {
     const mounts: [string, string][] = [['/cores/', coresDir], ['/fixtures/', path.join(here, 'fixtures')], ['/', www]];
     const server = createServer(async (req, res) => {
         const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname.startsWith('/sfu/') && req.method === 'POST') {
+            if (!SFU_APP_ID || !SFU_APP_TOKEN) {
+                res.writeHead(501, { 'Content-Type': 'application/json' }).end('{"error":"no SFU app configured"}');
+                return;
+            }
+            let raw = '';
+            for await (const chunk of req) raw += chunk;
+            try {
+                const result = await handleRelay(url.pathname.slice('/sfu/'.length), JSON.parse(raw), url.searchParams.get('rid') ?? 'h');
+                if (result === null) res.writeHead(204).end();
+                else res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
+            } catch (err) {
+                console.error('[e2e relay]', err);
+                res.writeHead(502).end(String(err));
+            }
+            return;
+        }
         if (url.pathname === '/token') {
             // Stand-in for a site's backend: GET /token?room=&peer=host|guest[&name=&sub=&role=&expired=1&forge=1]
             const q = url.searchParams;
@@ -159,6 +219,7 @@ export default async function setup(project: TestProject) {
     const port = typeof address === 'object' && address ? address.port : 0;
     project.provide('baseUrl', `http://127.0.0.1:${port}`);
     project.provide('signalUrl', signaling.url);
+    project.provide('sfu', !!(SFU_APP_ID && SFU_APP_TOKEN));
     return async () => {
         signaling.process.kill();
         await new Promise((resolve) => server.close(resolve));

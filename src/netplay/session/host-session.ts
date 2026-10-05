@@ -4,6 +4,9 @@
  * The host runs the only emulator. Each guest gets its own peer connection
  * carrying the host's video and audio out and the guest's controller in;
  * guest controllers are injected as virtual gamepads for players 2-4.
+ * With a `spectatorRelay`, spectators watch one stream published to an SFU
+ * instead (spectator-relay.ts); their peer connection then carries only
+ * control messages, and they fall back to a direct stream if the relay fails.
  *
  * Framework-agnostic: React code uses it through useCoopHost / GamePlayer's
  * `coop` prop, but nothing here depends on React.
@@ -21,6 +24,7 @@ import { DegradationLadder, p90, profileFor } from '../quality/degradation-ladde
 import { RoomManager, type SlotView } from './room-manager';
 import { generateRoomCode, generateSessionToken } from './room-code';
 import { readTransportStats } from './connection-quality';
+import { RelayPublisher, sharpLayerFor, type RelayInfo, type SpectatorRelay } from '../transport/spectator-relay';
 
 /** What the host session needs from the running emulator. */
 export interface CoopEmulatorHandle extends EmulatorEventSource {
@@ -50,7 +54,12 @@ export interface CoopHostOptions {
     maxSpectators?: number;
     /** How long a dropped player's slot is held for them. Default 30 s. */
     reconnectWindowMs?: number;
+    /** Stream to spectators through an SFU instead of one encode each (see httpSpectatorRelay). */
+    spectatorRelay?: SpectatorRelay;
 }
+
+/** 'off': no relay (or no spectators yet) · 'starting' · 'live' · 'failed': spectators get direct streams. */
+export type SpectatorRelayStatus = 'off' | 'starting' | 'live' | 'failed';
 
 export interface CoopHostPeer {
     peerId: string;
@@ -77,6 +86,7 @@ export interface CoopHostState {
     guestsConnected: number;
     emulatorAttached: boolean;
     degradationStep: number;
+    spectatorRelay: SpectatorRelayStatus;
 }
 
 interface PeerEntry {
@@ -93,6 +103,8 @@ interface PeerEntry {
     dropTimer?: ReturnType<typeof setTimeout>;
     lastInputAt: number;
     inputStale: boolean;
+    /** A spectator that couldn't watch through the relay and gets a direct stream. */
+    relayFallback?: boolean;
 }
 
 /** A peer reported 'disconnected' may recover on its own (ICE restarts); give it this long first. */
@@ -126,6 +138,9 @@ export class CoopHostSession {
     private detachAudio?: () => void;
     private removeVisibilityListener?: () => void;
     private snapshot: CoopHostState;
+    private relay: RelayPublisher | null = null;
+    private relayInfo: RelayInfo | null = null;
+    private relayStatus: SpectatorRelayStatus = 'off';
 
     private readonly ice: IceServerSource;
 
@@ -193,7 +208,7 @@ export class CoopHostSession {
         this.videoTrack = emulator.canvas.captureStream().getVideoTracks()[0] ?? null;
         this.refreshAudioTrack();
         this.detachAudio = emulator.onAudioAvailable?.(() => this.refreshAudioTrack());
-        for (const entry of this.peers.values()) void entry.pc.setTracks(this.videoTrack, this.audioTrack);
+        this.pushTracks();
         this.stopFramePacing = this.monitorFramePacing();
         this.emit();
         return () => {
@@ -234,6 +249,7 @@ export class CoopHostSession {
         this.status = 'stopped';
         this.broadcast({ type: 'host-ended' });
         for (const entry of [...this.peers.values()]) this.closePeer(entry.peerId);
+        this.closeRelay();
         this.detachEmulator();
         clearInterval(this.statsTimer);
         clearInterval(this.livenessTimer);
@@ -282,7 +298,77 @@ export class CoopHostSession {
         const track = this.emulator?.getAudioStream()?.getAudioTracks()[0] ?? null;
         if (track === this.audioTrack) return;
         this.audioTrack = track;
-        for (const entry of this.peers.values()) void entry.pc.setTracks(this.videoTrack, this.audioTrack);
+        this.pushTracks();
+    }
+
+    /** Hand the current tracks to every guest connection, and to the relay. */
+    private pushTracks(): void {
+        for (const entry of this.peers.values()) void this.setPeerTracks(entry);
+        void this.relay?.setTracks(this.videoTrack, this.audioTrack);
+    }
+
+    /** Spectators watching through the relay get no media on their own connection: that's the encode saved. */
+    private watchesViaRelay(entry: PeerEntry): boolean {
+        return entry.role === 'spectator' && !!this.options.spectatorRelay && this.relayStatus !== 'failed' && !entry.relayFallback;
+    }
+
+    private setPeerTracks(entry: PeerEntry): Promise<void> {
+        return this.watchesViaRelay(entry)
+            ? entry.pc.setTracks(null, null)
+            : entry.pc.setTracks(this.videoTrack, this.audioTrack);
+    }
+
+    /** Publish to the relay once the first spectator arrives. */
+    private ensureRelay(): void {
+        const relay = this.options.spectatorRelay;
+        if (!relay || this.relayStatus !== 'off') return;
+        this.relayStatus = 'starting';
+        const publisher = new RelayPublisher(relay, () => {
+            if (this.relay === publisher) this.relayFailed(new Error('relay connection lost'));
+        });
+        this.relay = publisher;
+        publisher.start(this.videoTrack, this.audioTrack)
+            .then((info) => {
+                if (this.relay !== publisher) return;
+                this.relayInfo = info;
+                this.relayStatus = 'live';
+                console.info('[netplay] spectator relay live: spectators watch through the SFU');
+                void this.applyRelayLayers();
+                for (const entry of this.peers.values()) {
+                    if (this.watchesViaRelay(entry) && entry.pc.isReady) entry.pc.sendControl({ type: 'relay', relay: info });
+                }
+                this.emit();
+            })
+            .catch((err) => {
+                // A relay closed on purpose (last spectator left) isn't a failure
+                if (this.relay === publisher) this.relayFailed(err);
+            });
+        this.emit();
+    }
+
+    /** The relay is unusable for this session: every spectator gets a direct stream. */
+    private relayFailed(err: unknown): void {
+        console.warn('[netplay] spectator relay unavailable, streaming to spectators directly:', err);
+        this.closeRelay();
+        this.relayStatus = 'failed';
+        for (const entry of this.peers.values()) {
+            if (entry.role !== 'spectator') continue;
+            entry.pc.sendControl({ type: 'relay', relay: null });
+            void this.setPeerTracks(entry).then(() => this.applyProfile(entry));
+        }
+        this.emit();
+    }
+
+    private closeRelay(): void {
+        this.relay?.close();
+        this.relay = null;
+        this.relayInfo = null;
+        if (this.relayStatus !== 'failed') this.relayStatus = 'off';
+    }
+
+    private async applyRelayLayers(): Promise<void> {
+        const height = this.emulator?.canvas.height ?? 0;
+        await this.relay?.applyLayers(height, sharpLayerFor(this.ladder.level));
     }
 
     private handleSignal(from: string, payload: SignalPayload, identity?: VerifiedIdentity): void {
@@ -324,7 +410,9 @@ export class CoopHostSession {
         // Under CPU pressure the host stops taking newcomers, but never turns
         // away someone reclaiming their own slot or retrying their join.
         const isNewcomer = !existing && !(result.role === 'player' && result.resumed);
-        if (isNewcomer && !this.ladder.level.acceptNewPeers) {
+        // Spectators watching through the relay cost the host nothing, so they're still welcome
+        const free = result.role === 'spectator' && !!this.options.spectatorRelay && this.relayStatus !== 'failed';
+        if (isNewcomer && !free && !this.ladder.level.acceptNewPeers) {
             this.room.left(peerId);
             this.signaling?.send(peerId, { type: 'join-rejected', reason: 'busy' });
             return;
@@ -364,7 +452,8 @@ export class CoopHostSession {
             }),
         };
         this.peers.set(peerId, entry);
-        void entry.pc.setTracks(this.videoTrack, this.audioTrack);
+        void this.setPeerTracks(entry);
+        if (this.watchesViaRelay(entry)) this.ensureRelay();
         this.scheduleExpiry();
         this.emit();
     }
@@ -373,6 +462,7 @@ export class CoopHostSession {
         const entry = this.peers.get(peerId);
         if (!entry) return;
         entry.pc.sendControl({ type: 'welcome', role: entry.role, slot: entry.slot });
+        if (this.watchesViaRelay(entry) && this.relayInfo) entry.pc.sendControl({ type: 'relay', relay: this.relayInfo });
         if (typeof document !== 'undefined' && document.hidden) entry.pc.sendControl({ type: 'host-status', backgrounded: true });
         this.broadcastRoster();
     }
@@ -421,6 +511,10 @@ export class CoopHostSession {
         if (!entry) return;
         if (message.type === 'ping' && typeof message.t === 'number') entry.pc.sendControl({ type: 'pong', t: message.t });
         else if (message.type === 'leave') this.handleLeave(peerId);
+        else if (message.type === 'relay-failed' && entry.role === 'spectator' && !entry.relayFallback) {
+            entry.relayFallback = true;
+            void this.setPeerTracks(entry).then(() => this.applyProfile(entry));
+        }
     }
 
     /** The connection is gone: hold a player's slot for the reconnect window. */
@@ -454,6 +548,8 @@ export class CoopHostSession {
         // With nobody left there is no encoding to shed; start the next
         // session from full quality.
         if (this.peers.size === 0) this.ladder.reset();
+        // Nobody left watching through the relay: stop publishing (and uploading)
+        if (this.relay && ![...this.peers.values()].some((e) => this.watchesViaRelay(e))) this.closeRelay();
         this.emit();
     }
 
@@ -485,7 +581,7 @@ export class CoopHostSession {
     private async applyProfile(entry: PeerEntry): Promise<void> {
         const sender = entry.pc.senders.video;
         const height = this.emulator?.canvas.height ?? 0;
-        if (!sender || !height || !entry.connected) return;
+        if (!sender || !height || !entry.connected || this.watchesViaRelay(entry)) return;
         try {
             await applyEncodingProfile(sender, profileFor(this.ladder.level, entry.role, entry.relayed), height, entry.role);
         } catch (err) {
@@ -509,6 +605,7 @@ export class CoopHostSession {
                 // connection torn down mid-poll
             }
         }));
+        void this.applyRelayLayers(); // picks up host canvas resizes and ladder steps
         if (changed) this.emit();
     }
 
@@ -530,6 +627,7 @@ export class CoopHostSession {
             if (now - windowStart >= 1000) {
                 if (!hidden && this.peers.size > 0 && intervals.length > 10 && this.ladder.sample(p90(intervals))) {
                     for (const entry of this.peers.values()) void this.applyProfile(entry);
+                    void this.applyRelayLayers();
                     this.emit();
                 }
                 intervals = [];
@@ -554,6 +652,7 @@ export class CoopHostSession {
             guestsConnected: peers.filter((p) => p.connected).length,
             emulatorAttached: this.emulator !== null,
             degradationStep: this.ladder.level.step,
+            spectatorRelay: this.relayStatus,
         };
     }
 
