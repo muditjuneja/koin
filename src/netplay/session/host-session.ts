@@ -332,6 +332,7 @@ export class CoopHostSession {
                 if (this.relay !== publisher) return;
                 this.relayInfo = info;
                 this.relayStatus = 'live';
+                console.info('[netplay] spectator relay live: spectators watch through the SFU');
                 void this.applyRelayLayers();
                 for (const entry of this.peers.values()) {
                     if (this.watchesViaRelay(entry) && entry.pc.isReady) entry.pc.sendControl({ type: 'relay', relay: info });

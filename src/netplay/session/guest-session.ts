@@ -363,6 +363,7 @@ export class CoopGuestSession {
             });
             if (this.relay !== subscriber || !this.isActive()) return;
             this.relayStream = stream;
+            console.info('[netplay] watching through the spectator relay');
             this.update({ mediaStream: stream, watchingViaRelay: true });
         } catch (err) {
             if (this.relay !== subscriber) return;
