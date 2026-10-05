@@ -23,14 +23,17 @@ export function getConsoleIconKey(system: string): ConsoleIconKey {
     return iconName && iconName in CONSOLE_ICON_PATHS ? (iconName as ConsoleIconKey) : 'DEFAULT';
 }
 
-/** Largest size that uses the simplified 20×20 drawing; bigger icons use the detailed 64×64 one. */
-const SMALL_MAX = 24;
+/** Each drawing's grid and the largest size it is used at; bigger icons fall through to the next. */
+const TIERS = [
+    { tier: 'xs', grid: 16, maxSize: 18 },
+    { tier: 'sm', grid: 20, maxSize: 26 },
+    { tier: 'lg', grid: 64, maxSize: Infinity },
+] as const;
 
 /** Single-colour console icon; takes the surrounding text colour. */
 export const ConsoleIcon: React.FC<ConsoleIconProps> = ({ system, className = '', size = 48 }) => {
-    const small = size <= SMALL_MAX;
-    const grid = small ? 20 : 64;
-    const paths = CONSOLE_ICON_PATHS[getConsoleIconKey(system)][small ? 'sm' : 'lg'];
+    const { tier, grid } = TIERS.find((t) => size <= t.maxSize) ?? TIERS[TIERS.length - 1];
+    const paths = CONSOLE_ICON_PATHS[getConsoleIconKey(system)][tier];
     return (
         <svg
             width={size}
