@@ -26,6 +26,7 @@ export interface KoinTranslations {
     };
     common: {
         disabledInHardcore: string;
+        disabledDuringCoop: string;
         notSupported: string;
         playToEnableRewind: string;
     };
@@ -83,6 +84,12 @@ export interface KoinTranslations {
         controllerReady: string;
         insertCoin: string;
         insertCoinTitle: string;
+        controlsHintTitle: string;
+        coopJoinedTitle: string;
+        coopPlayerJoined: string;
+        coopSpectatorJoined: string;
+        coopGuestLeft: string;
+        coopGuestFallbackName: string;
         controlsSaved: string;
         controlsReset: string;
     };

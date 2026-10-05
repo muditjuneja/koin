@@ -7,9 +7,12 @@
 
 import { ButtonId, KeyboardMapping, ConsoleCapabilities, DPAD_BUTTONS } from './types';
 import { DEFAULT_KEYBOARD } from './defaults';
+import { getSystem } from '../systems';
 
 /**
  * Console capabilities - which buttons each system has
+ * Keyed by canonical system key (systems-data.ts). Button lists follow each
+ * libretro core's RetroPad mapping: a button that is missing here gets no key.
  */
 export const CONSOLE_CAPABILITIES: Record<string, ConsoleCapabilities> = {
     // ============ Nintendo ============
@@ -23,7 +26,7 @@ export const CONSOLE_CAPABILITIES: Record<string, ConsoleCapabilities> = {
     },
     N64: {
         console: 'N64',
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'l', 'r', 'start'], // No select, has Z trigger (mapped to l2)
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'l', 'r', 'l2', 'start'], // No select; Z trigger is l2
     },
     GB: {
         console: 'GB',
@@ -38,17 +41,22 @@ export const CONSOLE_CAPABILITIES: Record<string, ConsoleCapabilities> = {
         buttons: [...DPAD_BUTTONS, 'a', 'b', 'l', 'r', 'start', 'select'],
     },
 
+    NDS: {
+        console: 'NDS',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'],
+    },
+
     // ============ Sega ============
-    SMS: {
-        console: 'SMS',
+    MASTER_SYSTEM: {
+        console: 'MASTER_SYSTEM',
         buttons: [...DPAD_BUTTONS, 'a', 'b', 'start'], // 1, 2, Pause
     },
     GENESIS: {
         console: 'GENESIS',
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'l', 'r', 'start'], // 6-button: A/B/C + X/Y/Z
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'], // 6-button: A/B/C + X/Y/Z, Mode
     },
-    GG: {
-        console: 'GG',
+    GAME_GEAR: {
+        console: 'GAME_GEAR',
         buttons: [...DPAD_BUTTONS, 'a', 'b', 'start'],
     },
     SATURN: {
@@ -63,39 +71,55 @@ export const CONSOLE_CAPABILITIES: Record<string, ConsoleCapabilities> = {
     },
 
     // ============ NEC ============
-    PCE: {
-        console: 'PCE', // TurboGrafx-16
+    PC_ENGINE: {
+        console: 'PC_ENGINE', // TurboGrafx-16
         buttons: [...DPAD_BUTTONS, 'a', 'b', 'start', 'select'], // I, II, Run, Select
     },
 
     // ============ Atari ============
-    ATARI2600: {
-        console: 'ATARI2600',
-        buttons: [...DPAD_BUTTONS, 'a', 'select'], // Fire, Select/Reset
+    ATARI_2600: {
+        console: 'ATARI_2600',
+        buttons: [...DPAD_BUTTONS, 'a', 'start', 'select', 'l', 'r', 'l2', 'r2'], // Fire, Reset, Select, difficulty switches
     },
-    ATARI7800: {
-        console: 'ATARI7800',
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'select'],
+    ATARI_5200: {
+        console: 'ATARI_5200',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'start', 'select', 'l'], // Fire 1/2, Start, Select, Option
+    },
+    ATARI_7800: {
+        console: 'ATARI_7800',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'start', 'select', 'l', 'r'], // Fire 1/2, Reset, Pause, Select, difficulty
     },
     LYNX: {
         console: 'LYNX',
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'start', 'select'], // A, B, Option 1, Option 2
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'start', 'l', 'r'], // A, B, Pause, Option 1, Option 2
     },
 
     // ============ SNK ============
-    NGPC: {
-        console: 'NGPC', // Neo Geo Pocket
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'start', 'select'],
+    NEOGEO: {
+        console: 'NEOGEO',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'start', 'select'], // A-D, Start, Coin
+    },
+    NEOGEO_POCKET: {
+        console: 'NEOGEO_POCKET',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'start'], // A, B, Option
+    },
+    NEOGEO_POCKET_COLOR: {
+        console: 'NEOGEO_POCKET_COLOR',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'start'],
     },
 
     // ============ Other ============
-    WSC: {
-        console: 'WSC', // WonderSwan
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'start'],
+    WONDERSWAN: {
+        console: 'WONDERSWAN',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'start', 'select'], // Select rotates the screen
+    },
+    WONDERSWAN_COLOR: {
+        console: 'WONDERSWAN_COLOR',
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'start', 'select'],
     },
     ARCADE: {
         console: 'ARCADE',
-        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'], // Generic 6-button
+        buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'], // Generic 6-button, Coin
     },
 };
 
@@ -104,12 +128,6 @@ export const CONSOLE_CAPABILITIES: Record<string, ConsoleCapabilities> = {
  * Only specify keys that differ from DEFAULT_KEYBOARD
  */
 export const CONSOLE_KEYBOARD_OVERRIDES: Partial<Record<string, Partial<KeyboardMapping>>> = {
-    // N64: Remap select since N64 has no select button
-    N64: {
-        select: 'KeyC', // Free up ShiftRight
-        l2: 'KeyQ',     // Z trigger
-    },
-
     // Genesis: Different layout for 6-button pad
     GENESIS: {
         // Genesis A/B/C maps to our a/b/x (C is like a third action button)
@@ -119,24 +137,19 @@ export const CONSOLE_KEYBOARD_OVERRIDES: Partial<Record<string, Partial<Keyboard
         l: 'KeyS',      // Y button
         r: 'KeyD',      // Z button
     },
-
-    // Atari: Simple fire button
-    ATARI2600: {
-        select: 'Tab', // Select/Reset
-        start: 'KeyR', // Reset
-    },
-    ATARI7800: {
-        select: 'Tab',
-        start: 'KeyR',
-    },
 };
 
 /**
  * Get capabilities for a console
  * Falls back to SNES-like if unknown
  */
+/** Canonical system key for any name or alias ('nes', 'Famicom', 'MASTER_SYSTEM' -> its key) */
+function systemKey(system: string): string {
+    return getSystem(system)?.key ?? system.toUpperCase();
+}
+
 export function getConsoleCapabilities(system: string): ConsoleCapabilities {
-    const normalized = system.toUpperCase();
+    const normalized = systemKey(system);
     return CONSOLE_CAPABILITIES[normalized] ?? {
         console: normalized,
         buttons: [...DPAD_BUTTONS, 'a', 'b', 'x', 'y', 'l', 'r', 'start', 'select'],
@@ -155,7 +168,7 @@ export function getConsoleButtons(system: string): ButtonId[] {
  * Merges console-specific overrides with defaults
  */
 export function getConsoleKeyboardDefaults(system: string): KeyboardMapping {
-    const normalized = system.toUpperCase();
+    const normalized = systemKey(system);
     const overrides = CONSOLE_KEYBOARD_OVERRIDES[normalized] ?? {};
     const capabilities = getConsoleCapabilities(system);
 

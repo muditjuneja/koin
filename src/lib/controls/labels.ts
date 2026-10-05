@@ -61,9 +61,13 @@ export function formatKeyCode(code: string): string {
     if (code === 'ArrowLeft') return '←';
     if (code === 'ArrowRight') return '→';
     if (code === 'Space') return 'Space';
-    if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
-    if (code === 'ControlLeft' || code === 'ControlRight') return 'Ctrl';
-    if (code === 'AltLeft' || code === 'AltRight') return 'Alt';
+    // Name the side: only the bound one works, and "Shift" alone sends players to the left key
+    if (code === 'ShiftLeft') return 'L Shift';
+    if (code === 'ShiftRight') return 'R Shift';
+    if (code === 'ControlLeft') return 'L Ctrl';
+    if (code === 'ControlRight') return 'R Ctrl';
+    if (code === 'AltLeft') return 'L Alt';
+    if (code === 'AltRight') return 'R Alt';
     if (code === 'Enter') return 'Enter';
     if (code === 'Tab') return 'Tab';
     if (code === 'Escape') return 'Esc';

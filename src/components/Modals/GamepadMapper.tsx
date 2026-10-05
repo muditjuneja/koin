@@ -17,6 +17,7 @@ import {
 import { useKoinTranslation } from '../../hooks/useKoinTranslation';
 import { useInputCapture } from '../../hooks/useInputCapture';
 import ModalShell from './ModalShell';
+import { isCoopVirtualGamepad } from '../../lib/controls/coop';
 
 export interface GamepadMapperProps {
     isOpen: boolean;
@@ -87,7 +88,7 @@ export default function GamepadMapper({
             const rawGamepads = navigator.getGamepads?.() ?? [];
             const gamepad = rawGamepads[selectedPlayer - 1];
 
-            if (gamepad) {
+            if (gamepad && !isCoopVirtualGamepad(gamepad)) {
                 // Check for any button press
                 for (let i = 0; i < gamepad.buttons.length; i++) {
                     if (gamepad.buttons[i].pressed) {

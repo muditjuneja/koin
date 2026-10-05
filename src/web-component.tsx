@@ -77,6 +77,13 @@ class RetroGamePlayerElement extends HTMLElement {
         this.render();
     }
 
+    // Co-op hosting: set a CoopHostSession from koin.js/netplay as a JS property
+    // (attributes can't carry objects), e.g. `el.coop = session`.
+    set coop(session: GamePlayerProps['coop']) {
+        this._props.coop = session;
+        this.render();
+    }
+
     private getProps(): GamePlayerProps {
         const romUrl = this.getAttribute('rom-url') || '';
         const system = this.getAttribute('system') || 'nes';

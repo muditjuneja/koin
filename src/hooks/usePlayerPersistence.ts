@@ -15,7 +15,7 @@ export interface PlayerSettings {
 }
 
 const DEFAULT_SETTINGS: PlayerSettings = {
-    volume: 1,
+    volume: 100, // percent, as the volume slider reports it
     muted: false,
     shader: '',
     showPerformanceOverlay: false,
@@ -55,6 +55,12 @@ export function usePlayerPersistence(
                 const stored = localStorage.getItem(STORAGE_KEY);
                 if (stored) {
                     const parsed = JSON.parse(stored);
+                    // Earlier versions defaulted volume to 1 on a 0-100 scale and
+                    // persisted it with any other setting, leaving players at 1%.
+                    // A stored value in (0, 1] is that default (or a fraction).
+                    if (typeof parsed.volume === 'number' && parsed.volume > 0 && parsed.volume <= 1) {
+                        parsed.volume = Math.round(parsed.volume * 100);
+                    }
                     setSettings(prev => ({ ...prev, ...parsed }));
                 }
             }

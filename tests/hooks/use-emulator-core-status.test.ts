@@ -37,6 +37,8 @@ vi.mock('../../src/lib/systems', () => ({
 
 vi.mock('../../src/lib/controls', () => ({
     buildRetroArchConfig: vi.fn(() => ({})),
+    coopRetroArchConfig: vi.fn(() => ({ input_max_users: 4 })),
+    coopRemapFile: vi.fn(() => null),
 }));
 
 vi.mock('../../src/lib/rom-cache', () => ({
@@ -207,5 +209,31 @@ describe('useEmulatorCore status machine', () => {
         expect(mockNostalgistInstance.start).toHaveBeenCalledTimes(1);
         expect(result.current.status).toBe('running');
         expect(onReady).toHaveBeenCalledTimes(1);
+    });
+
+    it('records whether the emulator was prepared to host co-op', async () => {
+        const { result, rerender } = renderHook((props: { coop: boolean }) => useEmulatorCore(createProps(props)), {
+            initialProps: { coop: false },
+        });
+        expect(result.current.preparedForCoop).toBe(null);
+
+        await act(async () => {
+            await result.current.prepare();
+        });
+        expect(result.current.preparedForCoop).toBe(false);
+
+        // Turning co-op on later doesn't change the emulator already prepared...
+        rerender({ coop: true });
+        expect(result.current.preparedForCoop).toBe(false);
+
+        // ...until it is prepared again.
+        act(() => {
+            result.current.stop();
+        });
+        await act(async () => {
+            await result.current.prepare();
+        });
+        expect(result.current.preparedForCoop).toBe(true);
+        expect((Nostalgist.prepare as any).mock.calls.at(-1)[0].retroarchConfig).toMatchObject({ input_max_users: 4 });
     });
 });

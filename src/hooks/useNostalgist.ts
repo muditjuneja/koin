@@ -3,6 +3,7 @@ import { Nostalgist } from 'nostalgist';
 import {
     KeyboardMapping,
     GamepadMapping,
+    PlayerIndex,
 } from '../lib/controls';
 import { PERFORMANCE_TIER_2_SYSTEMS } from '../lib/systems';
 import { useEmulatorCore } from './emulator/useEmulatorCore';
@@ -25,10 +26,15 @@ interface UseNostalgistOptions {
     getCanvasElement?: () => HTMLCanvasElement | null; // Function to get canvas element (must be in DOM before prepare)
     keyboardControls?: KeyboardMapping; // Custom keyboard mappings
     gamepadBindings?: GamepadMapping[]; // Custom gamepad mappings per player
+    coop?: boolean; // Prepare to host netplay co-op (standard pad binds for P2-4, multitap)
     retroAchievements?: RetroAchievementsConfig;
     onReady?: () => void;
     onError?: (error: Error) => void;
     initialVolume?: number;
+    // Fires once the game's audio GainNode exists (see useEmulatorAudio) —
+    // netplay's audio tap uses this to know when getAudioStream() will
+    // start returning real data, instead of polling.
+    onGainNodeReady?: (gainNode: GainNode) => void;
     romFileName?: string;
     shader?: string; // CRT shader preset (e.g., 'crt/crt-lottes')
     romId?: string;
@@ -70,12 +76,16 @@ export interface UseNostalgistReturn {
     // Volume
     setVolume: (volume: number) => void;
     toggleMute: () => void;
+    // A live MediaStream of the game's audio, for netplay's audio tap.
+    // Returns null until the game has made its first sound — see onGainNodeReady.
+    getAudioStream: () => MediaStream | null;
 
     // Utils
     screenshot: () => Promise<string | null>;
     pressKey: (key: string) => void;
-    pressDown: (button: string) => void;
-    pressUp: (button: string) => void;
+    // `player` defaults to 1.
+    pressDown: (button: string, player?: PlayerIndex) => void;
+    pressUp: (button: string, player?: PlayerIndex) => void;
     resize: (size: { width: number; height: number }) => void;
 
     // Cheats - low-level injection API
@@ -85,6 +95,8 @@ export interface UseNostalgistReturn {
     // RetroAchievements integration - get access to emulator internals
     getNostalgistInstance: () => Nostalgist | null;
     isPerformanceMode: boolean;
+    // Whether the current emulator was prepared to host co-op (null until the first prepare).
+    preparedForCoop: boolean | null;
 }
 
 export const useNostalgist = ({
@@ -96,10 +108,12 @@ export const useNostalgist = ({
     getCanvasElement,
     keyboardControls,
     gamepadBindings,
+    coop,
     retroAchievements,
     onReady,
     onError,
     initialVolume = 100,
+    onGainNodeReady,
     romFileName,
     shader,
     romId,
@@ -133,6 +147,7 @@ export const useNostalgist = ({
         resize,
         getNostalgistInstance,
         isPerformanceMode,
+        preparedForCoop,
     } = useEmulatorCore({
         system,
         romUrl,
@@ -143,6 +158,7 @@ export const useNostalgist = ({
         getCanvasElement,
         keyboardControls,
         gamepadBindings,
+        coop,
         retroAchievements,
         initialVolume,
         romFileName,
@@ -157,9 +173,11 @@ export const useNostalgist = ({
         isMuted,
         setVolume,
         toggleMute,
+        getAudioStream,
     } = useEmulatorAudio({
         nostalgistRef,
         initialVolume,
+        onGainNodeReady,
     });
 
     // 3. Input Logic (Press Key, Press Down/Up)
@@ -248,6 +266,7 @@ export const useNostalgist = ({
 
         setVolume,
         toggleMute,
+        getAudioStream,
 
         screenshot,
         pressKey,
@@ -260,6 +279,7 @@ export const useNostalgist = ({
 
         getNostalgistInstance,
         isPerformanceMode,
+        preparedForCoop,
     }), [
         status, error, isPaused, speed, isRewinding, rewindBufferSize, volume, isMuted,
         prepare, start, stop, restart,
@@ -267,11 +287,12 @@ export const useNostalgist = ({
         saveState, saveStateWithBlob, loadState,
         setSpeed, startRewind, stopRewind,
         isHeavySystem,
-        setVolume, toggleMute,
+        setVolume, toggleMute, getAudioStream,
         screenshot, pressKey, pressDown, pressUp, resize,
         injectCheats, clearCheats,
         getNostalgistInstance,
-        isPerformanceMode
+        isPerformanceMode,
+        preparedForCoop,
     ]);
 
     return hookReturn;
