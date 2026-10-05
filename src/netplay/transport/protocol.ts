@@ -15,6 +15,7 @@
  */
 
 import { ALL_BUTTONS, ButtonId, PlayerIndex } from '../../lib/controls/types';
+import type { RelayInfo } from './spectator-relay';
 
 const BUTTON_BIT = new Map<ButtonId, number>(ALL_BUTTONS.map((button, index) => [button, index]));
 
@@ -101,7 +102,11 @@ export type ControlMessage =
     | { type: 'host-ended' }
     | { type: 'leave' }
     | { type: 'ping'; t: number }
-    | { type: 'pong'; t: number };
+    | { type: 'pong'; t: number }
+    // Spectator relay (spectator-relay.ts): host → spectator "watch here" (null: back to the direct stream)…
+    | { type: 'relay'; relay: RelayInfo | null }
+    // …and spectator → host "couldn't, stream to me directly".
+    | { type: 'relay-failed' };
 
 export function encodeControlMessage(message: ControlMessage): string {
     return JSON.stringify(message);

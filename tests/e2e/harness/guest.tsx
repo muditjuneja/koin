@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { useCoopGuest } from '../../../src/netplay/react/hooks';
 import CoopGuestScreen from '../../../src/netplay/components/CoopGuestScreen';
+import { httpSpectatorRelay } from '../../../src/netplay/transport/spectator-relay';
 
 const params = new URLSearchParams(location.search);
 
@@ -28,6 +29,8 @@ function Guest() {
         role: params.get('role') === 'spectator' ? 'spectator' : 'player',
         name: params.get('name') ?? undefined,
         hostGraceMs: Number(params.get('graceMs') ?? 20000),
+        // ?relay=http[&rid=l]: subscribe through the e2e server's SFU stand-in, asking for that layer
+        spectatorRelay: params.get('relay') === 'http' ? httpSpectatorRelay({ url: `${location.origin}/?rid=${params.get('rid') ?? 'h'}` }) : undefined,
     });
     (window as unknown as { __guest?: unknown }).__guest = session;
     if (!session) return null;

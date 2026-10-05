@@ -28,6 +28,7 @@ import { createWebSocketSignaling, type SignalingToken, type SignalingTransport 
 import { JitterBufferController } from '../quality/receiver-tuning';
 import { generateSessionToken, normalizeRoomCode } from './room-code';
 import { classifyConnectionQuality, readTransportStats, type ConnectionQuality } from './connection-quality';
+import { RelaySubscriber, type RelayInfo, type SpectatorRelay } from '../transport/spectator-relay';
 
 export interface CoopGuestOptions {
     /** Base URL of the signaling server, or a factory for a ready transport (called per identity). */
@@ -47,6 +48,8 @@ export interface CoopGuestOptions {
     storage?: Storage | null;
     /** How long to wait for a vanished host before giving up. Default 20 s. */
     hostGraceMs?: number;
+    /** Watch through the host's SFU stream when it offers one (spectators only; see httpSpectatorRelay). */
+    spectatorRelay?: SpectatorRelay;
 }
 
 export type CoopGuestStatus =
@@ -77,6 +80,8 @@ export interface CoopGuestState {
     quality: ConnectionQuality;
     hostBackgrounded: boolean;
     lastHostEvent?: { event: HostEvent; at: number };
+    /** The picture comes through the host's SFU stream rather than directly from the host. */
+    watchingViaRelay: boolean;
 }
 
 interface Identity {
@@ -100,7 +105,10 @@ export class CoopGuestSession {
     private readonly storageKey: string;
     private signaling: SignalingTransport | null = null;
     private peer: CoopPeerConnection | null = null;
+    /** The direct stream from the host (empty while watching through the relay) */
     private mediaStream: MediaStream | null = null;
+    private relay: RelaySubscriber | null = null;
+    private relayStream: MediaStream | null = null;
     private jitter: JitterBufferController | null = null;
     private input: ControllerState = { buttons: new Set(), axes: NEUTRAL_AXES };
     private seq = 0;
@@ -134,6 +142,7 @@ export class CoopGuestSession {
             latencyMs: null,
             quality: 'connecting',
             hostBackgrounded: false,
+            watchingViaRelay: false,
         };
     }
 
@@ -247,6 +256,7 @@ export class CoopGuestSession {
     }
 
     private createPeer(): void {
+        this.closeRelay();
         this.peer?.close();
         this.mediaStream = null;
         this.jitter = null;
@@ -260,6 +270,7 @@ export class CoopGuestSession {
             onTrack: (event) => {
                 if (!this.mediaStream) this.mediaStream = event.streams[0] ?? new MediaStream();
                 if (!this.mediaStream.getTracks().includes(event.track)) this.mediaStream.addTrack(event.track);
+                if (this.relayStream) return; // watching through the relay; this one is the fallback
                 if (event.track.kind === 'video') this.jitter = new JitterBufferController(event.receiver);
                 this.update({ mediaStream: this.mediaStream });
             },
@@ -285,6 +296,7 @@ export class CoopGuestSession {
     /** Lost the host: rejoin with our session token (same slot) until the grace period runs out. */
     private reconnect(): void {
         if (!this.isActive()) return;
+        this.closeRelay();
         this.peer?.close();
         this.peer = null;
         this.update({ status: 'reconnecting', mediaStream: null, quality: 'reconnecting' });
@@ -325,9 +337,57 @@ export class CoopGuestSession {
                 this.saveIdentity();
                 this.finish('ended');
                 break;
+            case 'relay':
+                if (message.relay) void this.watchViaRelay(message.relay);
+                else this.useDirectStream();
+                break;
             default:
                 break;
         }
+    }
+
+    /** Switch the picture to the host's SFU stream; on any failure ask the host to stream to us directly. */
+    private async watchViaRelay(info: RelayInfo): Promise<void> {
+        const relay = this.options.spectatorRelay;
+        if (this.role !== 'spectator' || !relay || this.relay) {
+            if (this.role === 'spectator' && !relay) this.peer?.sendControl({ type: 'relay-failed' });
+            return;
+        }
+        const subscriber = new RelaySubscriber(relay, () => {
+            if (this.relay === subscriber) this.relayLost();
+        });
+        this.relay = subscriber;
+        try {
+            const stream = await subscriber.start(info, (receiver) => {
+                if (this.relay === subscriber) this.jitter = new JitterBufferController(receiver);
+            });
+            if (this.relay !== subscriber || !this.isActive()) return;
+            this.relayStream = stream;
+            this.update({ mediaStream: stream, watchingViaRelay: true });
+        } catch (err) {
+            if (this.relay !== subscriber) return;
+            console.warn('[netplay] could not watch through the relay, asking for a direct stream:', err);
+            this.relayLost();
+        }
+    }
+
+    private relayLost(): void {
+        this.closeRelay();
+        this.peer?.sendControl({ type: 'relay-failed' });
+        this.useDirectStream();
+    }
+
+    /** Back to the host's own stream (the host has stopped relaying, or we couldn't use it). */
+    private useDirectStream(): void {
+        this.closeRelay();
+        this.jitter = null;
+        this.update({ mediaStream: this.mediaStream, watchingViaRelay: false });
+    }
+
+    private closeRelay(): void {
+        this.relay?.close();
+        this.relay = null;
+        this.relayStream = null;
     }
 
     private sendInput(): void {
@@ -341,10 +401,12 @@ export class CoopGuestSession {
         if (!pc || this.snapshot.status !== 'connected') return;
         try {
             const stats = await pc.getStats();
+            // Video arrives on the relay's connection while watching through it
+            const videoStats = this.relayStream && this.relay?.peerConnection ? await this.relay.peerConnection.getStats() : stats;
             let jitterBufferMs: number | null = null;
             let packetsLost = 0;
             let packetsReceived = 0;
-            stats.forEach((report) => {
+            videoStats.forEach((report) => {
                 if (report.type === 'inbound-rtp' && report.kind === 'video') {
                     packetsLost = report.packetsLost ?? 0;
                     packetsReceived = report.packetsReceived ?? 0;
@@ -373,6 +435,7 @@ export class CoopGuestSession {
         clearInterval(this.joinTimer);
         clearTimeout(this.graceTimer);
         clearTimeout(this.dropTimer);
+        this.closeRelay();
         this.peer?.close();
         this.peer = null;
         this.signaling?.close();

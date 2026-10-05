@@ -2,8 +2,17 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import GamePlayer from '../../../src/components/GamePlayer';
 import { useCoopHost } from '../../../src/netplay/react/hooks';
+import { httpSpectatorRelay, type SpectatorRelay } from '../../../src/netplay/transport/spectator-relay';
 
 const params = new URLSearchParams(location.search);
+/** ?relay=http: spectators watch through the e2e server's SFU stand-in; ?relay=fail: a relay that never works (spectators must fall back) */
+const relayParam = params.get('relay');
+const failingRelay: SpectatorRelay = {
+    publish: () => Promise.reject(new Error('relay down (test)')),
+    subscribe: () => Promise.reject(new Error('relay down (test)')),
+    answer: () => Promise.reject(new Error('relay down (test)')),
+};
+const spectatorRelay = relayParam === 'fail' ? failingRelay : relayParam === 'http' ? httpSpectatorRelay({ url: location.origin }) : undefined;
 const signaling = params.get('signal')!;
 const roomCode = params.get('room') ?? undefined;
 /** ?late=1 boots the game single-player; hosting starts when the test calls __startHosting(). */
@@ -15,7 +24,7 @@ const signalingToken = ({ roomCode }: { roomCode: string }) =>
 
 function Host() {
     const [hosting, setHosting] = useState(!late);
-    const { session } = useCoopHost(hosting ? { signaling, signalingToken, core: 'fceumm', roomCode, reconnectWindowMs: Number(params.get('reconnectMs') ?? 30000) } : null);
+    const { session } = useCoopHost(hosting ? { signaling, signalingToken, core: 'fceumm', roomCode, reconnectWindowMs: Number(params.get('reconnectMs') ?? 30000), spectatorRelay, maxSpectators: Number(params.get('maxSpectators') ?? 3) } : null);
     Object.assign(window, { __host: session, __startHosting: () => setHosting(true) });
     if (!session && !late) return null;
     return (

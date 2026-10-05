@@ -17,7 +17,7 @@
 
 // Sessions
 export { CoopHostSession } from './netplay/session/host-session';
-export type { CoopHostOptions, CoopHostState, CoopHostPeer, CoopEmulatorHandle } from './netplay/session/host-session';
+export type { CoopHostOptions, CoopHostState, CoopHostPeer, CoopEmulatorHandle, SpectatorRelayStatus } from './netplay/session/host-session';
 export { CoopGuestSession } from './netplay/session/guest-session';
 export type { CoopGuestOptions, CoopGuestState, CoopGuestStatus } from './netplay/session/guest-session';
 export type { SlotView, SlotStatus } from './netplay/session/room-manager';
@@ -41,6 +41,8 @@ export { createWebSocketSignaling, createCallbackSignaling, createMemorySignalin
 export type { SignalingTransport, SignalingMessage, SignalingState, SignalingToken, VerifiedIdentity, WebSocketSignalingOptions, CallbackSignalingOptions } from './netplay/transport/signaling';
 export { DEFAULT_ICE_SERVERS, turnCredentialsProvider, normalizeIceServers } from './netplay/transport/ice-servers';
 export type { IceServersOption, IceServersProvider, TurnCredentialsProviderOptions } from './netplay/transport/ice-servers';
+export { httpSpectatorRelay } from './netplay/transport/spectator-relay';
+export type { SpectatorRelay, RelayInfo, HttpSpectatorRelayOptions } from './netplay/transport/spectator-relay';
 
 // Guest input
 export { GuestInputController } from './netplay/input/guest-input';
