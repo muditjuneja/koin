@@ -165,7 +165,15 @@ export class CoopGuestSession {
             : signaling({ peerId, secret });
         this.signaling.onMessage(({ fromPeerId, payload }) => this.handleSignal(fromPeerId, payload));
         this.signaling.onStateChange((state) => {
-            if (state === 'open' && this.isActive()) this.requestJoin();
+            if (state === 'open' && this.isActive()) {
+                // Signaling is only needed to set a connection up. If it dropped and came back
+                // while we're still connected to the host, re-joining would tear that down for nothing.
+                if (this.snapshot.status === 'connected' && this.peer?.isReady) {
+                    console.info('[netplay] signaling reconnected; still connected to the host, not re-joining');
+                } else {
+                    this.requestJoin();
+                }
+            }
             if (state === 'closed' && this.signaling?.closeReason && this.signaling.closeReason !== 'closed' && this.isActive()) {
                 if (this.signaling.closeReason === 'unauthorized') this.finish('rejected', { rejectReason: 'unauthorized' });
                 else this.finish('error', { error: `Could not join: ${this.signaling.closeReason}` });
@@ -287,15 +295,16 @@ export class CoopGuestSession {
             this.graceTimer = undefined;
             this.update({ status: 'connected' });
         } else if (state === 'disconnected') {
-            this.dropTimer = setTimeout(() => this.reconnect(), DISCONNECTED_GRACE_MS);
+            this.dropTimer = setTimeout(() => this.reconnect('connection to the host stayed disconnected'), DISCONNECTED_GRACE_MS);
         } else if (state === 'failed') {
-            this.reconnect();
+            this.reconnect('connection to the host failed');
         }
     }
 
     /** Lost the host: rejoin with our session token (same slot) until the grace period runs out. */
-    private reconnect(): void {
+    private reconnect(reason: string): void {
         if (!this.isActive()) return;
+        console.info(`[netplay] reconnecting: ${reason}`);
         this.closeRelay();
         this.peer?.close();
         this.peer = null;
