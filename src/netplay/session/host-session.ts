@@ -109,6 +109,12 @@ interface PeerEntry {
 
 /** A peer reported 'disconnected' may recover on its own (ICE restarts); give it this long first. */
 const DISCONNECTED_GRACE_MS = 5000;
+/**
+ * After the last relay spectator leaves, keep publishing this long: a viewer
+ * reconnecting (a page reload, a network blip) then finds the stream still
+ * live instead of the host restarting it.
+ */
+const RELAY_LINGER_MS = 20_000;
 const STATS_INTERVAL_MS = 2000;
 /**
  * Guests resend their controller every 50 ms. If nothing arrives for this
@@ -141,6 +147,7 @@ export class CoopHostSession {
     private relay: RelayPublisher | null = null;
     private relayInfo: RelayInfo | null = null;
     private relayStatus: SpectatorRelayStatus = 'off';
+    private relayLingerTimer?: ReturnType<typeof setTimeout>;
 
     private readonly ice: IceServerSource;
 
@@ -321,6 +328,8 @@ export class CoopHostSession {
     /** Publish to the relay once the first spectator arrives. */
     private ensureRelay(): void {
         const relay = this.options.spectatorRelay;
+        clearTimeout(this.relayLingerTimer); // someone is watching again
+        this.relayLingerTimer = undefined;
         if (!relay || this.relayStatus !== 'off') return;
         this.relayStatus = 'starting';
         const publisher = new RelayPublisher(relay, () => {
@@ -360,6 +369,8 @@ export class CoopHostSession {
     }
 
     private closeRelay(): void {
+        clearTimeout(this.relayLingerTimer);
+        this.relayLingerTimer = undefined;
         this.relay?.close();
         this.relay = null;
         this.relayInfo = null;
@@ -421,7 +432,10 @@ export class CoopHostSession {
 
         // A retried join from a peer we already have: start over with a fresh
         // connection (its old one is what it gave up on).
-        if (existing) this.closePeer(peerId);
+        if (existing) {
+            console.info(`[netplay] ${existing.role} ${peerId.slice(0, 6)} re-joined (its connection was ${existing.pc.pc.connectionState}); rebuilding it`);
+            this.closePeer(peerId);
+        }
 
         const slot = result.role === 'player' ? result.slot : undefined;
         this.signaling?.send(peerId, { type: 'join-accepted', role: result.role, slot, sessionToken: result.sessionToken });
@@ -521,6 +535,7 @@ export class CoopHostSession {
     private handleDrop(peerId: string): void {
         const entry = this.peers.get(peerId);
         if (!entry) return;
+        console.info(`[netplay] ${entry.role} ${peerId.slice(0, 6)} dropped (connection ${entry.pc.pc.connectionState})`);
         if (entry.slot !== undefined) this.pads.release(entry.slot);
         this.closePeer(peerId);
         this.room.disconnected(peerId, Date.now());
@@ -548,8 +563,14 @@ export class CoopHostSession {
         // With nobody left there is no encoding to shed; start the next
         // session from full quality.
         if (this.peers.size === 0) this.ladder.reset();
-        // Nobody left watching through the relay: stop publishing (and uploading)
-        if (this.relay && ![...this.peers.values()].some((e) => this.watchesViaRelay(e))) this.closeRelay();
+        // Nobody left watching through the relay: stop publishing (and uploading), after a grace period
+        if (this.relay && !this.relayLingerTimer && ![...this.peers.values()].some((e) => this.watchesViaRelay(e))) {
+            this.relayLingerTimer = setTimeout(() => {
+                this.relayLingerTimer = undefined;
+                if (![...this.peers.values()].some((e) => this.watchesViaRelay(e))) this.closeRelay();
+                this.emit();
+            }, RELAY_LINGER_MS);
+        }
         this.emit();
     }
 
