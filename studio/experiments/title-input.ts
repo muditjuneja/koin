@@ -1,0 +1,12 @@
+import { launch, ensureRom, outDir } from '../lib.ts';
+import path from 'node:path';
+const romName = await ensureRom('Super-C-USA.zip', { ext: /\.nes$/i });
+const s = await launch({ core: 'fceumm', romName });
+const shot = (n: string) => s.screenshot(path.join(outDir, `p5-${n}.png`));
+await s.wait(3000); await shot('0-before');
+await s.call('tap', 'start', 150); await s.wait(500); await shot('1-after-start');
+await s.call('tap', 'select', 150); await s.wait(500); await shot('2-after-select');
+await s.call('tap', 'select', 150); await s.wait(500); await shot('3-after-select2');
+await s.call('tap', 'start', 150); await s.wait(1500); await shot('4-after-start2');
+await s.wait(3000); await shot('5-later');
+await s.close();

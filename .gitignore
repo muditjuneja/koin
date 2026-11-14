@@ -38,3 +38,7 @@ coverage/
 
 # Netplay e2e cache (downloaded cores, built harness, wrangler state)
 tests/e2e/.cache/
+
+# Studio cache (downloaded ROMs/cores, built page, renders)
+studio/.cache/
+studio/out/
