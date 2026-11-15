@@ -93,6 +93,11 @@ const PUSH: Record<View, Behaviour[]> = {
         { name: 'stand-fire-up', rules: [hold('up'), FIRE], frames: 8 * SEC }, // clears blockers above
         { name: 'push-left', rules: [hold('left'), FIRE, ...hop], frames: 4 * SEC },
         { name: 'push-down-right', rules: [hold('down', 'right'), FIRE, ...hop], frames: 6 * SEC },
+        // vertical (climbing) levels: jump up through platforms, drifting sideways to find the next one
+        ...(jump ? [
+            { name: 'climb', rules: [hold('up'), FIRE, { buttons: [jump], period: 50, on: 16 }, { buttons: ['left'], period: 240, on: 60 }, { buttons: ['right'], period: 240, on: 60, phase: 120 }], frames: 12 * SEC },
+            { name: 'climb-wide', rules: [hold('up'), FIRE, { buttons: [jump], period: 60, on: 18, jitter: 20 }, { buttons: ['left'], period: 400, on: 140, jitter: 100 }, { buttons: ['right'], period: 400, on: 140, phase: 200, jitter: 100 }], frames: 15 * SEC },
+        ] : []),
     ],
     // Top-down stages are small mazes: walls need a sideways detour before pushing up again.
     overhead: [
@@ -114,8 +119,18 @@ const PUSH: Record<View, Behaviour[]> = {
 const FIGHT: Record<View, Behaviour[]> = {
     side: [
         { name: 'fight-up', rules: [hold('up'), FIRE], frames: 50 * SEC },
-        { name: 'fight-sweep', rules: [FIRE, { buttons: ['up'], period: 240, on: 120 }, { buttons: ['right'], period: 240, on: 120, phase: 60 }, { buttons: ['left'], period: 400, on: 30, phase: 200 }, ...hop], frames: 50 * SEC },
-        { name: 'fight-forward', rules: [FIRE, ...hop], frames: 40 * SEC },
+        // aim sweep, 12s cycle: up, up-right, right, left, up-left, up — covers bosses on
+        // either side, at ground level (robot spider) or up high (the wall's core)
+        { name: 'fight-sweep', rules: [
+            FIRE,
+            { buttons: ['up'], period: 720, on: 240 },
+            { buttons: ['up'], period: 720, on: 240, phase: 240 },
+            { buttons: ['right'], period: 720, on: 240, phase: 600 },
+            { buttons: ['left'], period: 720, on: 240, phase: 360 },
+            ...hop,
+        ], frames: 50 * SEC },
+        // diagonals both ways: targets above and to the side
+        { name: 'fight-diagonals', rules: [FIRE, hold('up'), { buttons: ['left'], period: 360, on: 180 }, { buttons: ['right'], period: 360, on: 180, phase: 180 }], frames: 40 * SEC },
     ],
     // Top-down: holding up walks you past a boss at the top of the screen, so
     // fights step back down, tap up to face it, then stand and fire.
@@ -206,112 +221,165 @@ async function bootState(state: string): Promise<Session> {
     return s;
 }
 
-interface Scouted {
-    /** State LEAD_IN before the boss screen came up. */
-    entrance: string;
-    /** Arena byte's normal (non-boss) value in this area. */
-    arenaBase: number;
-    /** What the bot was doing when it walked in — replayed at 1x to get back there. */
-    approach: Behaviour;
-    /** Game frames from the entrance state to the arena (when the arena byte can't tell). */
-    approachFrames: number;
-}
-
 const LEAD_IN = 3 * SEC;
-/** No progress for this long — a full cycle of push behaviours, plus margin — means the stall is the boss arena. */
+/**
+ * Fight mode starts when the arena byte says "boss" AND the screen has stopped
+ * scrolling this long (Super C's scroll-type byte also flips for vertical
+ * sections, which keep scrolling), or after a stall longer than a full cycle
+ * of push behaviours. It ends when scrolling resumes without the arena signal
+ * (a mid-boss died) — so the bot carries on to the real boss.
+ */
+const ARENA_STALL = 4 * SEC;
 const stallLimit = (list: Behaviour[]) => Math.max(90 * SEC, 1.3 * list.reduce((t, b) => t + b.frames, 0));
 
-/** Fast-forward until the boss screen comes up. */
+type Snap = { frame: number; state: string };
+
+/** Push/fight state machine shared by the fast-forward scout and the 1x attempts. */
+class Driver {
+    mode: 'push' | 'fight' = 'push';
+    behaviour: Behaviour;
+    private index = 0;
+    private since = 0;
+    private progress = '';
+    lastProgress = 0;
+    private fights: Behaviour[];
+    private s: Session;
+    private view: View;
+    private arenaBase: Base;
+    constructor(s: Session, view: View, arenaBase: Base, opts: { approach?: Behaviour; fightOrder?: Behaviour[] } = {}) {
+        this.s = s;
+        this.view = view;
+        this.arenaBase = arenaBase;
+        this.fights = opts.fightOrder ?? FIGHT[view];
+        this.behaviour = opts.approach ?? PUSH[view][0];
+    }
+    private get list() { return this.mode === 'push' ? PUSH[this.view] : this.fights; }
+    private async use(b: Behaviour, f: number) {
+        this.behaviour = b;
+        this.since = f;
+        await this.s.call('autopilot', { frameAddr: FRAME, rules: b.rules });
+    }
+    async start() {
+        const f = await this.s.call<number>('frames');
+        this.progress = await readProgress(this.s);
+        this.lastProgress = f;
+        await this.use(this.behaviour, f);
+    }
+    /** One control tick. Returns 'fight' on the tick fight mode begins. */
+    async tick(f: number): Promise<'fight' | null> {
+        const now = await readProgress(this.s);
+        const moved = now !== this.progress;
+        if (moved) { this.progress = now; this.lastProgress = f; }
+        const arena = await inArena(this.s, this.arenaBase);
+        const stalled = f - this.lastProgress;
+        if (this.mode === 'push') {
+            if ((arena && stalled > ARENA_STALL) || stalled > stallLimit(PUSH[this.view])) {
+                this.mode = 'fight';
+                this.index = 0;
+                await this.use(this.fights[0], f);
+                return 'fight';
+            }
+            if (moved && this.behaviour !== PUSH[this.view][0] && PUSH[this.view].includes(this.behaviour)) {
+                this.index = 0;
+                await this.use(PUSH[this.view][0], f);
+            } else if (f - this.since > this.behaviour.frames) {
+                this.index = (this.index + 1) % this.list.length;
+                await this.use(this.list[this.index], f);
+            }
+        } else {
+            if (moved && !arena) { // screen scrolls again: that was a mid-boss, carry on
+                this.mode = 'push';
+                this.index = 0;
+                await this.use(PUSH[this.view][0], f);
+            } else if (f - this.since > this.behaviour.frames) {
+                this.index = (this.index + 1) % this.list.length;
+                await this.use(this.list[this.index], f);
+            }
+        }
+        return null;
+    }
+}
+
+interface Scouted {
+    /** State LEAD_IN before the last fight that ended in the level's boss kill. */
+    entrance: string;
+    /** Arena byte's normal value in this area. */
+    arenaBase: Base;
+    /** Push behaviour in use when that fight began — replayed at 1x to walk back in. */
+    approach: Behaviour;
+}
+
+/** Fast-forward until the level's boss is defeated; remember where its fight began. */
 async function scout(s: Session, area: { n: number; view: View }): Promise<Scouted> {
-    const list = PUSH[area.view];
-    let index = 0;
-    const use = (i: number) => s.call('autopilot', { frameAddr: FRAME, rules: list[i].rules });
-    await use(0);
-    await s.call('fastForward', true);
-    let progress = await readProgress(s);
-    let lastMove = await s.call<number>('frames');
     const arenaBase = await readByte(s, profile.boss.arena.addr);
-    const ring: { frame: number; state: string }[] = [];
+    const driver = new Driver(s, area.view, arenaBase);
+    await driver.start();
+    await s.call('fastForward', true);
+    const ring: Snap[] = [];
     const leadBefore = (frame: number) => [...ring].reverse().find((r) => r.frame <= frame - LEAD_IN) ?? ring[0];
-    // where the last progress happened — the entrance if the arena turns out to be a stall
-    let lastProgress = { frame: lastMove, lead: { frame: lastMove, state: await s.call<string>('saveState') } };
+    let lastFight: { entrance: Snap; approach: Behaviour } | null = null;
+    let pushing = driver.behaviour;
+    let seenArena = false;
     const t0 = Date.now();
     let lastLog = 0;
-    const done = async (entrance: { frame: number; state: string }, arenaFrame: number, approach: Behaviour, why: string) => {
-        await s.call('fastForward', false);
-        await s.call('stopAutopilot');
-        console.log(`  scout: ${why} after ${((Date.now() - t0) / 1000).toFixed(0)}s wall (approach "${approach.name}")`);
-        return { entrance: entrance.state, arenaBase, approach, approachFrames: arenaFrame - entrance.frame };
-    };
     for (;;) {
-        if (Date.now() - t0 > Number(process.env.STUDIO_SCOUT_MS ?? 240_000)) throw new Error(`area ${area.n}: boss screen not reached in time`);
+        if (Date.now() - t0 > Number(process.env.STUDIO_SCOUT_MS ?? 300_000)) throw new Error(`area ${area.n}: boss not beaten in time${lastFight ? ' (fights started but none finished)' : ''}`);
         await s.wait(100);
         const f = await s.call<number>('frames');
         if (!ring.length || f - ring[ring.length - 1].frame >= SEC) {
             ring.push({ frame: f, state: await s.call<string>('saveState') });
-            if (ring.length > 8) ring.shift();
+            if (ring.length > 15) ring.shift();
         }
-        if (await inArena(s, arenaBase)) return done(leadBefore(f), f, list[index], 'boss screen');
-        if (f - lastProgress.frame > stallLimit(list)) return done(lastProgress.lead, lastProgress.frame, list[0], 'long stall (treating as the boss arena)');
-        const now = await readProgress(s);
+        seenArena ||= await inArena(s, arenaBase);
+        if (await bossDown(s, arenaBase, seenArena)) break;
+        if (driver.mode === 'push') pushing = driver.behaviour;
+        if ((await driver.tick(f)) === 'fight') {
+            // the fight began where scrolling stopped: lead in from just before that
+            lastFight = { entrance: leadBefore(driver.lastProgress), approach: pushing };
+            if (debug) console.log(`    fight mode at frame ${f}`);
+        }
         if (debug && Date.now() - lastLog > 5000) {
             lastLog = Date.now();
-            console.log(`    t=${((Date.now() - t0) / 1000).toFixed(0)}s frames=${f} progress=${now} behaviour=${list[index].name}`);
-        }
-        if (now !== progress) {
-            progress = now;
-            lastMove = f;
-            lastProgress = { frame: f, lead: leadBefore(f) };
-            if (index !== 0) { index = 0; await use(0); }
-        } else if (f - lastMove > list[index].frames) {
-            index = (index + 1) % list.length;
-            lastMove = f;
-            await use(index);
+            console.log(`    t=${((Date.now() - t0) / 1000).toFixed(0)}s frames=${f} mode=${driver.mode} behaviour=${driver.behaviour.name}`);
         }
     }
+    await s.call('fastForward', false);
+    await s.call('stopAutopilot');
+    if (!lastFight) throw new Error(`area ${area.n}: boss beaten without a recognisable fight`);
+    console.log(`  scout: boss beaten after ${((Date.now() - t0) / 1000).toFixed(0)}s wall (approach "${lastFight.approach.name}")`);
+    return { entrance: lastFight.entrance.state, arenaBase, approach: lastFight.approach };
 }
 
 interface Attempt { file: string; arenaAt: number; killedAt: number; behaviour: string }
 
-/** One 1x attempt: walk in with `approach`, fight with `order` (first, then fallbacks), record. */
-async function attempt(area: { n: number }, scouted: Scouted, order: Behaviour[], tag: string): Promise<Attempt | null> {
+/** One 1x attempt from the entrance with a given fight order; records until the boss-defeated flag. */
+async function attempt(area: { n: number; view: View }, scouted: Scouted, order: Behaviour[], tag: string): Promise<Attempt | null> {
     const s = await bootState(scouted.entrance);
     try {
-        let current = scouted.approach;
-        let k = -1; // -1 = still approaching
-        await s.call('autopilot', { frameAddr: FRAME, rules: current.rules });
+        const driver = new Driver(s, area.view, scouted.arenaBase, { approach: scouted.approach, fightOrder: order });
+        await driver.start();
         const file = path.join(dir, `area-${area.n}.${tag}.webm`);
         const rec = await s.record(file);
         const t0 = Date.now();
+        const startFrames = await s.call<number>('frames');
         let arenaAt: number | null = null;
-        let lastSwitch = await s.call<number>('frames');
-        const startFrames = lastSwitch;
         let seenArena = false;
         while (Date.now() - t0 < Number(process.env.STUDIO_FIGHT_MS ?? 120_000)) {
             await s.wait(100);
-            const arenaNow = await inArena(s, scouted.arenaBase);
-            seenArena ||= arenaNow;
+            seenArena ||= await inArena(s, scouted.arenaBase);
             if (await bossDown(s, scouted.arenaBase, seenArena)) {
                 const killedAt = (Date.now() - t0) / 1000;
                 const speed = ((await s.call<number>('frames')) - startFrames) / SEC / killedAt;
                 if (debug || speed < 0.9) console.log(`    ${tag}: game ran at ${(speed * 100).toFixed(0)}% speed while recording`);
                 await s.wait(3500); // let the explosion play out
                 await rec.stop();
-                return { file, arenaAt: arenaAt ?? 0, killedAt, behaviour: current.name };
+                return { file, arenaAt: arenaAt ?? 0, killedAt, behaviour: driver.behaviour.name };
             }
-            const f = await s.call<number>('frames');
-            // in the arena once the arena byte flips, or after walking in as long as the scout did
-            const entering = k < 0 && (arenaNow || f - startFrames >= scouted.approachFrames);
-            if (entering || (k >= 0 && f - lastSwitch > current.frames)) {
-                if (entering) arenaAt = (Date.now() - t0) / 1000;
-                k = (k + 1) % order.length;
-                current = order[k];
-                lastSwitch = f;
-                await s.call('autopilot', { frameAddr: FRAME, rules: current.rules });
-            }
+            if ((await driver.tick(await s.call<number>('frames'))) === 'fight') arenaAt = (Date.now() - t0) / 1000;
         }
         await rec.stop();
-        rmSync(file, { force: true });
+        if (debug) renameSync(file, file.replace('.webm', '.fail.webm')); // keep for inspection
+        else rmSync(file, { force: true });
         return null;
     } finally {
         await s.close();

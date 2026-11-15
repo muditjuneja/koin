@@ -13,6 +13,7 @@ const POLICIES: Record<string, object[]> = {
     right: [FIRE, hold('right')],
     'face-up': [FIRE, { buttons: ['down'], period: 240, on: 14 }, { buttons: ['up'], period: 240, on: 4, phase: 226 }],
     'down-fire': [FIRE, hold('down')],
+    both: [FIRE, { buttons: ['left'], period: 180, on: 30 }, { buttons: ['right'], period: 180, on: 30, phase: 90 }, { buttons: ['a'], period: 70, on: 14 }],
 };
 const romName = await ensureRom('Super-C-USA.zip', { ext: /\.nes$/i });
 const s = await launch({ core: 'fceumm', romName, width: 512, height: 480 });
