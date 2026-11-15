@@ -15,11 +15,13 @@
         "gameMode": { "addr": "0x18", "playing": 4 },
         "level": "0x50",
         "lives": "0x53",
-        "bossStatus": { "addr": "0x5c", "defeatedMask": 1 },
         "progress": ["0x63", "0x65", "0x6c", "0x74", "0x82"],
-        "bossArena": { "addr": "0x61", "note": "scroll type; changes on boss screens (1 = helicopter / robot spider / fortress wall / crypto-crustacean, 2 = tank / chandelier / Jagger Froid / final boss per Data Crystal; top-down areas already use 1 for normal scrolling)" },
         "overheadFlag": "0x5d",
         "weapon": "0xb8"
+    },
+    "boss": {
+        "arena": { "addr": "0x61", "changed": true, "note": "scroll type; changes on boss screens (1 = helicopter / robot spider / fortress wall / crypto-crustacean, 2 = tank / chandelier / Jagger Froid / final boss per Data Crystal; top-down areas already use 1 for normal scrolling)" },
+        "defeated": { "addr": "0x5c", "mask": 1, "note": "boss status: bit 0 set when the boss is defeated" }
     },
     "cheats": {
         "always": [

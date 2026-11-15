@@ -1,0 +1,47 @@
+{
+    "id": "mega-man-2",
+    "title": "Mega Man 2",
+    "system": "NES",
+    "core": "fceumm",
+    "rom": { "store": "mega-man-2-usa.zip", "match": "\\.nes$" },
+    "status": "draft — addresses sourced, not yet run",
+    "sources": {
+        "ram": "https://datacrystal.tcrf.net/wiki/Mega_Man_2/RAM_map",
+        "ramMachineReadable": "https://raw.githubusercontent.com/openai/retro/master/retro/data/stable/MegaMan2-Nes/data.json",
+        "cheatsLibretro": "https://github.com/libretro/libretro-database/blob/master/cht/Nintendo%20-%20Nintendo%20Entertainment%20System/Mega%20Man%202%20(USA).cht"
+    },
+    "ram": {
+        "frameCounter": "0xf39",
+        "playerHp": "0x6c0",
+        "lives": "0xa8",
+        "bossHp": "0x6c1",
+        "invincibilityTimer": "0x4b",
+        "stageSelectCursor": { "addr": "0x2a", "note": "$00 = Dr. Wily, $01-$08 clockwise starting from Bubble Man" },
+        "progress": ["0x20", "0x22", "0x1f"]
+    },
+    "boss": {
+        "arena": { "addr": "0x6c1", "ne": 0, "note": "boss HP bar fills when the fight starts" },
+        "defeated": { "addr": "0x6c1", "eq": 0, "afterArena": true }
+    },
+    "freeze": { "0x6c0": 28, "0xa8": 3 },
+    "freezeNotes": "full HP (28) and 3 lives every frame — no blinking, unlike the invincibility timer",
+    "controls": { "fire": "b", "jump": "a" },
+    "start": [
+        { "tap": "start", "waitMs": 4000 },
+        { "tap": "start", "waitMs": 3000 },
+        { "select": "0x2a", "waitMs": 300 },
+        { "tap": "start", "waitMs": 10000 }
+    ],
+    "startNotes": "title story -> title menu -> stage select (cursor set in RAM) -> boss intro -> stage; timings unverified",
+    "areas": [
+        { "n": 1, "name": "Bubble Man", "view": "side", "select": 1 },
+        { "n": 2, "name": "Air Man", "view": "side", "select": 2 },
+        { "n": 3, "name": "Quick Man", "view": "side", "select": 3 },
+        { "n": 4, "name": "Wood Man", "view": "side", "select": 4 },
+        { "n": 5, "name": "Crash Man", "view": "side", "select": 5 },
+        { "n": 6, "name": "Flash Man", "view": "side", "select": 6 },
+        { "n": 7, "name": "Metal Man", "view": "side", "select": 7 },
+        { "n": 8, "name": "Heat Man", "view": "side", "select": 8 }
+    ],
+    "areasNotes": "clockwise order from Bubble Man is from the stage-select note above; names per position still to verify on screen"
+}

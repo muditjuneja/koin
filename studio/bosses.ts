@@ -24,6 +24,16 @@ import { launch, ensureRom, outDir, type Session } from './lib.ts';
 
 type View = 'side' | 'overhead';
 
+/**
+ * A test on one RAM byte. `mask` is applied first; then `changed` (differs
+ * from the value when the area started), `eq` or `ne`; with only a mask, any
+ * set bit passes.
+ */
+interface Cond { addr: string; mask?: number; eq?: number; ne?: number; changed?: boolean }
+
+/** One step of getting from power-on to a level: press a button, or set the stage-select byte. */
+type StartStep = { tap: string; waitMs: number } | { select: string; waitMs?: number };
+
 interface Profile {
     id: string;
     title: string;
@@ -31,19 +41,25 @@ interface Profile {
     rom: { store: string; match: string };
     ram: {
         frameCounter: string;
-        gameMode: { addr: string; playing: number };
-        level: string;
-        lives?: string;
-        bossStatus: { addr: string; defeatedMask: number };
+        /** Wait for this before treating the level as started (else just wait a few seconds). */
+        gameMode?: { addr: string; playing: number };
+        /** Checked against the area number after the start-area cheat. */
+        level?: string;
         progress: string[];
-        /** Boss screen is up when this byte differs from its value at the start of the area. */
-        bossArena: { addr: string };
     };
-    cheats: { always: string[]; startArea?: Record<string, string> };
+    boss: {
+        /** Boss screen is up. */
+        arena: Cond;
+        /** Boss beaten. `afterArena`: only counts once the arena has been seen (e.g. boss HP back to 0). */
+        defeated: Cond & { afterArena?: boolean };
+    };
+    cheats?: { always?: string[]; startArea?: Record<string, string> };
+    /** RAM bytes held at a value every frame (infinite health etc.), as {"0xADDR": value}. */
+    freeze?: Record<string, number>;
     fastForwardRatio?: number;
     controls: { fire: string; jump?: string };
-    start: { tap: string; waitMs: number }[];
-    areas: { n: number; view: View }[];
+    start: StartStep[];
+    areas: { n: number; view: View; select?: number; name?: string }[];
 }
 
 const hex = (s: string) => parseInt(s, 16);
@@ -56,11 +72,9 @@ mkdirSync(dir, { recursive: true });
 const debug = !!process.env.STUDIO_DEBUG;
 
 const FRAME = hex(profile.ram.frameCounter);
-const BOSS = hex(profile.ram.bossStatus.addr);
-const BOSS_MASK = profile.ram.bossStatus.defeatedMask;
 const PROGRESS = profile.ram.progress.map(hex);
-const ARENA = profile.ram.bossArena;
 const { fire, jump } = profile.controls;
+const ALWAYS_CHEATS = profile.cheats?.always ?? [];
 
 type Rule = { buttons: string[]; period: number; on: number; phase?: number; jitter?: number; ticks?: boolean };
 /** A named autopilot behaviour, run for `frames` game frames before the next one is tried. */
@@ -89,6 +103,10 @@ const PUSH: Record<View, Behaviour[]> = {
         { name: 'detour-left-wide', rules: [FIRE, { buttons: ['left'], period: 360, on: 180 }, { buttons: ['up'], period: 360, on: 180, phase: 180 }], frames: 12 * SEC },
         { name: 'back-out-right', rules: [FIRE, { buttons: ['down'], period: 300, on: 60 }, { buttons: ['right'], period: 300, on: 120, phase: 240 }, { buttons: ['up'], period: 300, on: 120, phase: 120 }], frames: 10 * SEC },
         { name: 'back-out-left', rules: [FIRE, { buttons: ['down'], period: 300, on: 60 }, { buttons: ['left'], period: 300, on: 120, phase: 240 }, { buttons: ['up'], period: 300, on: 120, phase: 120 }], frames: 10 * SEC },
+        // Random walks with an upward bias: co-prime periods + re-rolled phases, so the
+        // mix of directions keeps changing and eventually finds the way around.
+        { name: 'wander', rules: [FIRE, { buttons: ['up'], period: 97, on: 60, jitter: 97 }, { buttons: ['left'], period: 173, on: 55, jitter: 173 }, { buttons: ['right'], period: 151, on: 55, phase: 70, jitter: 151 }, { buttons: ['down'], period: 211, on: 30, jitter: 211 }], frames: 25 * SEC },
+        { name: 'wander-wide', rules: [FIRE, { buttons: ['up'], period: 131, on: 70, jitter: 131 }, { buttons: ['left'], period: 263, on: 110, jitter: 263 }, { buttons: ['right'], period: 241, on: 110, phase: 120, jitter: 241 }, { buttons: ['down'], period: 307, on: 50, jitter: 307 }], frames: 25 * SEC },
     ],
 };
 
@@ -116,9 +134,25 @@ const FIGHT: Record<View, Behaviour[]> = {
 };
 
 const readProgress = async (s: Session) => (await Promise.all(PROGRESS.map((a) => s.call<number[]>('ram', a)))).map((r) => r[0]).join(',');
-const bossDown = async (s: Session) => ((await s.call<number[]>('ram', BOSS))[0] & BOSS_MASK) !== 0;
-/** Boss screen = the arena byte differs from its value when the area started (scroll type changes). */
-const inArena = async (s: Session, base: number) => (await s.call<number[]>('ram', hex(ARENA.addr)))[0] !== base;
+const readByte = async (s: Session, addr: string) => (await s.call<number[]>('ram', hex(addr)))[0];
+
+/** Values of the arena byte when the area starts, for `changed` conditions. */
+type Base = number;
+function test(c: Cond, value: number, base: Base): boolean {
+    const v = c.mask !== undefined ? value & c.mask : value;
+    if (c.changed) return v !== (c.mask !== undefined ? base & c.mask : base);
+    if (c.eq !== undefined) return v === c.eq;
+    if (c.ne !== undefined) return v !== c.ne;
+    return v !== 0;
+}
+const inArena = async (s: Session, base: Base) => test(profile.boss.arena, await readByte(s, profile.boss.arena.addr), base);
+/** `seenArena` gates conditions like "boss HP is 0", which is also true before the fight starts. */
+const bossDown = async (s: Session, base: Base, seenArena: boolean) =>
+    (!profile.boss.defeated.afterArena || seenArena) && test(profile.boss.defeated, await readByte(s, profile.boss.defeated.addr), base);
+
+async function applyFreezes(s: Session) {
+    for (const [addr, value] of Object.entries(profile.freeze ?? {})) await s.call('freeze', hex(addr), value);
+}
 
 async function newSession(): Promise<Session> {
     const romName = await ensureRom(profile.rom.store, { ext: new RegExp(profile.rom.match, 'i') });
@@ -129,21 +163,34 @@ async function newSession(): Promise<Session> {
     return launch({ core: profile.core, romName, width: 512, height: 480, retroarchConfig: { fastforward_ratio: profile.fastForwardRatio ?? 8 } });
 }
 
-/** Fresh game at the start of `area`, with cheats on and RAM located. */
-async function bootArea(area: number): Promise<Session> {
+/** Fresh game at the start of `area`, with cheats and freezes on and RAM located. */
+async function bootArea(area: { n: number; select?: number }): Promise<Session> {
     const s = await newSession();
     await s.wait(1000);
-    const areaCode = profile.cheats.startArea?.[String(area)];
-    await s.call('cheats', [...profile.cheats.always, ...(areaCode ? [areaCode] : [])]);
+    const areaCode = profile.cheats?.startArea?.[String(area.n)];
+    const codes = [...ALWAYS_CHEATS, ...(areaCode ? [areaCode] : [])];
+    if (codes.length) await s.call('cheats', codes);
     await s.wait(1500);
+    let located = false;
     for (const step of profile.start) {
-        await s.call('tap', step.tap, 120);
-        await s.wait(step.waitMs);
+        if ('select' in step) {
+            // stage-select screen: point the cursor at this area's stage
+            if (!located) { await s.locateRam(); located = true; }
+            if (area.select === undefined) throw new Error(`area ${area.n}: profile has a select step but no areas[].select`);
+            await s.call('poke', hex(step.select), area.select);
+            await s.wait(step.waitMs ?? 200);
+        } else {
+            await s.call('tap', step.tap, 120);
+            await s.wait(step.waitMs);
+        }
     }
-    await s.locateRam();
-    await s.waitRam(hex(profile.ram.gameMode.addr), (v) => v === profile.ram.gameMode.playing, 20_000);
-    const [level] = await s.call<number[]>('ram', hex(profile.ram.level));
-    if (level !== area - 1) throw new Error(`area ${area}: game started on level index ${level} (start-area code wrong?)`);
+    if (!located) await s.locateRam();
+    if (profile.ram.gameMode) await s.waitRam(hex(profile.ram.gameMode.addr), (v) => v === profile.ram.gameMode!.playing, 20_000);
+    if (profile.ram.level && areaCode) {
+        const level = await readByte(s, profile.ram.level);
+        if (level !== area.n - 1) throw new Error(`area ${area.n}: game started on level index ${level} (start-area code wrong?)`);
+    }
+    await applyFreezes(s);
     return s;
 }
 
@@ -151,10 +198,11 @@ async function bootArea(area: number): Promise<Session> {
 async function bootState(state: string): Promise<Session> {
     const s = await newSession();
     await s.wait(1000);
-    await s.call('cheats', profile.cheats.always);
+    if (ALWAYS_CHEATS.length) await s.call('cheats', ALWAYS_CHEATS);
     await s.call('loadState', state);
     await s.wait(300);
     await s.locateRam();
+    await applyFreezes(s);
     return s;
 }
 
@@ -170,8 +218,8 @@ interface Scouted {
 }
 
 const LEAD_IN = 3 * SEC;
-/** No progress for this long, with every push tried: treat the stall as the boss arena. */
-const STALL_ARENA = 90 * SEC;
+/** No progress for this long — a full cycle of push behaviours, plus margin — means the stall is the boss arena. */
+const stallLimit = (list: Behaviour[]) => Math.max(90 * SEC, 1.3 * list.reduce((t, b) => t + b.frames, 0));
 
 /** Fast-forward until the boss screen comes up. */
 async function scout(s: Session, area: { n: number; view: View }): Promise<Scouted> {
@@ -182,7 +230,7 @@ async function scout(s: Session, area: { n: number; view: View }): Promise<Scout
     await s.call('fastForward', true);
     let progress = await readProgress(s);
     let lastMove = await s.call<number>('frames');
-    const [arenaBase] = await s.call<number[]>('ram', hex(ARENA.addr));
+    const arenaBase = await readByte(s, profile.boss.arena.addr);
     const ring: { frame: number; state: string }[] = [];
     const leadBefore = (frame: number) => [...ring].reverse().find((r) => r.frame <= frame - LEAD_IN) ?? ring[0];
     // where the last progress happened — the entrance if the arena turns out to be a stall
@@ -204,7 +252,7 @@ async function scout(s: Session, area: { n: number; view: View }): Promise<Scout
             if (ring.length > 8) ring.shift();
         }
         if (await inArena(s, arenaBase)) return done(leadBefore(f), f, list[index], 'boss screen');
-        if (f - lastProgress.frame > STALL_ARENA) return done(lastProgress.lead, lastProgress.frame, list[0], 'long stall (treating as the boss arena)');
+        if (f - lastProgress.frame > stallLimit(list)) return done(lastProgress.lead, lastProgress.frame, list[0], 'long stall (treating as the boss arena)');
         const now = await readProgress(s);
         if (debug && Date.now() - lastLog > 5000) {
             lastLog = Date.now();
@@ -238,9 +286,12 @@ async function attempt(area: { n: number }, scouted: Scouted, order: Behaviour[]
         let arenaAt: number | null = null;
         let lastSwitch = await s.call<number>('frames');
         const startFrames = lastSwitch;
+        let seenArena = false;
         while (Date.now() - t0 < Number(process.env.STUDIO_FIGHT_MS ?? 120_000)) {
             await s.wait(100);
-            if (await bossDown(s)) {
+            const arenaNow = await inArena(s, scouted.arenaBase);
+            seenArena ||= arenaNow;
+            if (await bossDown(s, scouted.arenaBase, seenArena)) {
                 const killedAt = (Date.now() - t0) / 1000;
                 const speed = ((await s.call<number>('frames')) - startFrames) / SEC / killedAt;
                 if (debug || speed < 0.9) console.log(`    ${tag}: game ran at ${(speed * 100).toFixed(0)}% speed while recording`);
@@ -250,7 +301,7 @@ async function attempt(area: { n: number }, scouted: Scouted, order: Behaviour[]
             }
             const f = await s.call<number>('frames');
             // in the arena once the arena byte flips, or after walking in as long as the scout did
-            const entering = k < 0 && ((await inArena(s, scouted.arenaBase)) || f - startFrames >= scouted.approachFrames);
+            const entering = k < 0 && (arenaNow || f - startFrames >= scouted.approachFrames);
             if (entering || (k >= 0 && f - lastSwitch > current.frames)) {
                 if (entering) arenaAt = (Date.now() - t0) / 1000;
                 k = (k + 1) % order.length;
@@ -288,7 +339,7 @@ async function fight(area: { n: number; view: View }, scouted: Scouted): Promise
 for (const area of areas) {
     console.log(`${profile.title} — area ${area.n} (${area.view})`);
     let scouted: Scouted;
-    const s = await bootArea(area.n);
+    const s = await bootArea(area);
     try {
         scouted = await scout(s, area);
         writeFileSync(path.join(dir, `area-${area.n}-boss.state`), Buffer.from(scouted.entrance, 'base64'));
