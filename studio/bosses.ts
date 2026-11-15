@@ -4,13 +4,14 @@
  *   node studio/bosses.ts super-c [areas...]
  *
  * Per area:
- *   1. scout — boot with the profile's cheats (+ start-at-area code), then
- *      fast-forward with an autopilot that pushes forward and switches
- *      behaviour when progress stalls, until the boss screen comes up
- *      (profile `ram.bossArena`). Keep the state from a few seconds earlier.
- *   2. fight — from that state, run several 1x attempts in parallel, each
- *      with a different fight behaviour, recording until the boss-defeated
- *      flag. Keep the quickest kill.
+ *   1. scout — boot with the profile's cheats/freezes (+ start-at-area code or
+ *      stage select), then fast-forward with the push/fight Driver until the
+ *      level's boss-defeated condition. Fight mode starts where the arena
+ *      signal fires and scrolling stops (or a long stall); it ends if scrolling
+ *      resumes (a mid-boss). The last fight before the kill is the clip.
+ *   2. fight — from 3s before that fight, run several 1x attempts in
+ *      parallel, each leading with a different fight behaviour, recording
+ *      until the boss-defeated condition. Keep the quickest kill.
  *
  * Fights are decided at 1x on purpose: at fast-forward inputs only change once
  * per animation tick (several game frames), so fire rate and timing differ and

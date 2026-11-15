@@ -35,28 +35,35 @@ reaches the "playing" mode, the start-area code lands on the right level).
 | Field | Used for |
 |---|---|
 | `ram.frameCounter` | autopilot clock (works at 1x and fast-forward) |
-| `ram.gameMode` | wait until gameplay has started |
-| `ram.level` | verify the start-area cheat |
-| `ram.bossStatus` | boss-defeated flag: ends the scout and the recording |
-| `ram.progress` | bytes that change as the level scrolls: stall = obstacle or boss arena |
-| `cheats.always` | invincibility, weapon, lives |
-| `cheats.startArea` | jump straight to area N |
-| `areas[].view` | `side` or `overhead`: picks the bot's behaviour set |
+| `ram.gameMode` | (optional) wait until gameplay has started |
+| `ram.level` | (optional) verify the start-area cheat |
+| `ram.progress` | bytes that change as the level scrolls: a stall = obstacle or boss arena |
+| `boss.arena` | byte test for "boss screen" (`changed` since the area started, `eq`, `ne`, `mask`) |
+| `boss.defeated` | byte test for the kill; `afterArena` for tests like "boss HP is 0" |
+| `cheats.always` | (optional) core cheat codes: invincibility, weapon, lives |
+| `cheats.startArea` | (optional) cheat code per area to start there |
+| `freeze` | (optional) RAM bytes held every frame, e.g. `{"0x6c0": 28}` for full health |
+| `start` | power-on to gameplay: `{"tap": "start", "waitMs": 600}` steps, or `{"select": "0x2a"}` to set a stage-select byte to `areas[].select` |
+| `areas[].view` | `side` or `overhead`: picks the bot's behaviour sets |
 
 ## How a boss run works (`bosses.ts`)
 
-1. **Scout (8x fast-forward).** Boot with the profile's cheats + the
-   start-area code and verify the level. The autopilot cycles "push"
-   behaviours (side view: right / up-right / stand and shoot up / left;
-   top-down: up and sideways detours); any progress resets to the first. It
-   stops when the boss screen comes up — the profile's `bossArena` byte
-   changes from its value at the start of the area — or, failing that, after
-   90 game-seconds with no progress. A rolling buffer of save states gives the
-   entrance a 3-second lead-in.
+1. **Scout (8x fast-forward).** Boot with the profile's cheats/freezes and
+   start-area code (or stage select). A push/fight state machine drives the
+   autopilot:
+   - *push*: cycle push behaviours (side view: right / up-right / stand and
+     shoot up / left / climb; top-down: up, sideways detours, back-outs,
+     up-biased wanders); any scroll resets to the first.
+   - *fight* starts when `boss.arena` holds and the screen has stopped
+     scrolling for 4s (or after a stall longer than a full push cycle), and
+     cycles fight behaviours. If scrolling resumes without the arena signal
+     it was a mid-boss: back to push.
+   The scout runs until `boss.defeated`; the last fight before the kill is the
+   one to record. A rolling buffer of save states gives it a 3s lead-in.
 2. **Fight (1x, in parallel).** One browser per fight behaviour, each loading
-   the entrance, walking in the way the scout did, then fighting (falling back
-   to the other fight behaviours in turn). Each records until the
-   boss-defeated flag (+3.5s for the explosion). The quickest kill is kept.
+   the lead-in state and running the same state machine with that behaviour
+   first. Each records until `boss.defeated` (+3.5s for the explosion). The
+   quickest kill is kept.
 
 Fights are decided at 1x on purpose: at fast-forward inputs only change once
 per animation tick (several game frames), so a fast-forward winner doesn't
