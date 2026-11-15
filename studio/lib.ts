@@ -123,6 +123,10 @@ export interface Session {
     call<T = unknown>(method: string, ...args: unknown[]): Promise<T>;
     wait(ms: number): Promise<void>;
     record(file: string): Promise<{ stop(): Promise<string> }>;
+    /** Locate NES system RAM in the wasm heap (from a raw save state's RAM chunk). */
+    locateRam(): Promise<number>;
+    /** Poll a RAM byte until `pred` holds (wall-clock timeout). */
+    waitRam(addr: number, pred: (v: number) => boolean, timeoutMs?: number, pollMs?: number): Promise<number>;
     screenshot(file: string): Promise<void>;
     close(): Promise<void>;
 }
@@ -182,6 +186,29 @@ export async function launch(opts: LaunchOptions): Promise<Session> {
                     return file;
                 },
             };
+        },
+        async locateRam() {
+            // Paused, live RAM equals the snapshot byte for byte; resumed, only live RAM keeps changing.
+            await session.call('pause');
+            await session.wait(100);
+            const state = Buffer.from(await session.call<string>('saveState'), 'base64');
+            const i = state.indexOf(Buffer.from([0x52, 0x41, 0x4d, 0x00])); // "RAM\0" chunk tag (fceumm)
+            if (i < 0 || state.readUInt32LE(i + 4) !== 0x800) throw new Error('no NES RAM chunk in state');
+            const ptr = await session.call<number | null>('findRam', state.subarray(i + 8, i + 8 + 0x800).toString('base64'));
+            await session.call('resume');
+            if (ptr == null) throw new Error('RAM snapshot not found in heap');
+            const live = await session.call<number | null>('pickLiveRam', 0x800);
+            if (live == null) throw new Error('found RAM copies in heap, but none is changing (emulator paused?)');
+            return live;
+        },
+        async waitRam(addr, pred, timeoutMs = 60_000, pollMs = 100) {
+            const t0 = Date.now();
+            for (;;) {
+                const [v] = await session.call<number[]>('ram', addr);
+                if (pred(v)) return v;
+                if (Date.now() - t0 > timeoutMs) throw new Error(`waitRam($${addr.toString(16)}) timed out (last=${v})`);
+                await session.wait(pollMs);
+            }
         },
         async screenshot(file) {
             mkdirSync(path.dirname(file), { recursive: true });

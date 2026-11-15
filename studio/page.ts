@@ -34,10 +34,12 @@ const originalConnect = AudioNode.prototype.connect;
 
 let nostalgist: Nostalgist | null = null;
 let ramPtr: number | null = null;
+let lastHits: number[] = [];
 let recorder: MediaRecorder | null = null;
 const freezes = new Map<number, number>();
 let freezeLoop = 0;
 let autopilotLoop = 0;
+let gameClock = 0;
 let autopilotHeld = new Set<string>();
 
 function toB64(bytes: Uint8Array): string {
@@ -151,10 +153,30 @@ const studio = {
             if (heap[i] !== probe[0]) continue;
             for (let j = 1; j < probe.length; j++) if (heap[i + j] !== probe[j]) continue outer;
             hits.push(i - best);
-            if (hits.length > 4) break;
+            if (hits.length > 16) break;
         }
         ramPtr = hits.length ? hits[0] : null;
+        lastHits = hits;
         return ramPtr;
+    },
+    /**
+     * The heap also holds stale copies of RAM (e.g. the save-state buffer we
+     * just matched against). Live RAM is the copy that keeps changing: watch
+     * every candidate for a few frames and keep the one that moves most.
+     */
+    async pickLiveRam(len: number): Promise<number | null> {
+        const heap = () => (nostalgist!.getEmscriptenModule() as any).HEAPU8 as Uint8Array;
+        const before = lastHits.map((p) => heap().slice(p, p + len));
+        await sleep(250);
+        let bestPtr: number | null = null, bestChanged = 0;
+        lastHits.forEach((p, k) => {
+            const now = heap().subarray(p, p + len);
+            let changed = 0;
+            for (let i = 0; i < len; i++) if (now[i] !== before[k][i]) changed++;
+            if (changed > bestChanged) { bestChanged = changed; bestPtr = p; }
+        });
+        if (bestPtr != null) ramPtr = bestPtr;
+        return bestPtr;
     },
     setRamPtr(ptr: number) { ramPtr = ptr; },
     ram(addr: number, len = 1): number[] {
@@ -185,26 +207,56 @@ const studio = {
         (m.HEAPU8 as Uint8Array)[ramPtr! + addr] = value;
     },
 
+    /**
+     * Core-level cheats (Game Genie, Pro Action Replay, raw codes — whatever
+     * the core accepts), applied the same way koin's useEmulatorCheats does.
+     * Multi-part codes joined with "+" are passed through; RetroArch splits them.
+     */
+    cheats(codes: string[]) {
+        const m = nostalgist!.getEmscriptenModule() as any;
+        m._cmd_cheat_realloc(0);
+        if (codes.length) m._cmd_cheat_realloc(codes.length);
+        codes.forEach((code, i) => {
+            m._cmd_cheat_set_code(i, m.stringToNewUTF8(code));
+            m._cmd_cheat_toggle_index(i, true);
+        });
+        m._cmd_cheat_apply_cheats();
+        return m._cmd_cheat_get_size?.() ?? codes.length;
+    },
+
     // --- autopilot ----------------------------------------------------------
     /**
      * A tiny in-page bot clocked by the game's own frame counter, so it
      * behaves the same at 1x and fast-forward. Each rule is a button held
      * for `on` frames out of every `period` frames (offset by `phase`).
      */
-    autopilot(cfg: { frameAddr: number; rules: { buttons: string[]; period: number; on: number; phase?: number; jitter?: number }[] }) {
+    autopilot(cfg: { frameAddr: number; rules: { buttons: string[]; period: number; on: number; phase?: number; jitter?: number; ticks?: boolean }[] }) {
         studio.stopAutopilot();
         let last = studio.ram(cfg.frameAddr)[0];
-        let clock = 0;
+        let ticks = 0;
         const held = new Set<string>();
         const phases = cfg.rules.map((r) => r.phase ?? 0);
         const tick = () => {
             const now = studio.ram(cfg.frameAddr)[0];
-            clock += (now - last + 256) % 256;
+            const prevClock = gameClock;
+            gameClock += (now - last + 256) % 256; // persists across autopilot changes
             last = now;
+            ticks++;
             const want = new Set<string>();
             cfg.rules.forEach((r, i) => {
-                const t = (clock + phases[i]) % r.period;
-                if (t < r.on) r.buttons.forEach((b) => want.add(b));
+                // `ticks` rules toggle per animation frame — at fast-forward many game
+                // frames pass per tick, so frame-based rapid fire would alias badly.
+                let active: boolean;
+                if (r.ticks) active = (ticks + phases[i]) % r.period < r.on;
+                else {
+                    // Active if any game frame since the last tick fell in the on-window,
+                    // so short taps still register when several frames pass per tick.
+                    active = gameClock - prevClock >= r.period;
+                    for (let f = prevClock + 1; !active && f <= gameClock; f++) active = (f + phases[i]) % r.period < r.on;
+                    if (gameClock === prevClock) active = (gameClock + phases[i]) % r.period < r.on;
+                }
+                const t = (gameClock + phases[i]) % r.period;
+                if (active) r.buttons.forEach((b) => want.add(b));
                 // re-roll phase once per cycle for some unpredictability
                 if (r.jitter && t >= r.period - 1) phases[i] = (phases[i] + Math.floor(Math.random() * r.jitter)) % r.period;
             });
@@ -214,10 +266,9 @@ const studio = {
         };
         autopilotLoop = requestAnimationFrame(tick);
         autopilotHeld = held;
-        studio._clock = () => clock;
     },
-    _clock: () => 0,
-    frames: () => studio._clock(),
+    /** Game frames elapsed while an autopilot has been running (monotonic). */
+    frames: () => gameClock,
     stopAutopilot() {
         if (autopilotLoop) cancelAnimationFrame(autopilotLoop);
         autopilotLoop = 0;

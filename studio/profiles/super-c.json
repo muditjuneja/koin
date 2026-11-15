@@ -1,0 +1,50 @@
+{
+    "id": "super-c",
+    "title": "Super C",
+    "system": "NES",
+    "core": "fceumm",
+    "rom": { "store": "Super-C-USA.zip", "match": "\\.nes$" },
+    "sources": {
+        "ram": "https://datacrystal.tcrf.net/wiki/Super_C_(NES)/RAM_map",
+        "ramMachineReadable": "https://raw.githubusercontent.com/openai/retro/master/retro/data/stable/SuperC-Nes/data.json",
+        "cheats": "https://almarsguides.com/retro/walkthroughs/nes/games/SuperC/GameGenie/",
+        "cheatsLibretro": "https://github.com/libretro/libretro-database/blob/master/cht/Nintendo%20-%20Nintendo%20Entertainment%20System/Super%20C%20(USA).cht"
+    },
+    "ram": {
+        "frameCounter": "0x5b",
+        "gameMode": { "addr": "0x18", "playing": 4 },
+        "level": "0x50",
+        "lives": "0x53",
+        "bossStatus": { "addr": "0x5c", "defeatedMask": 1 },
+        "progress": ["0x63", "0x65", "0x6c", "0x74", "0x82"],
+        "bossArena": { "addr": "0x61", "note": "scroll type; changes on boss screens (1 = helicopter / robot spider / fortress wall / crypto-crustacean, 2 = tank / chandelier / Jagger Froid / final boss per Data Crystal; top-down areas already use 1 for normal scrolling)" },
+        "overheadFlag": "0x5d",
+        "weapon": "0xb8"
+    },
+    "cheats": {
+        "always": [
+            "AUUEPGEY", "TEUEZGZE", "AOSAGPEP", "AOVEELEP",
+            "EUUTGIYS", "YSXTPSEL", "ZEUTZIAA",
+            "GZVAZTSP",
+            "SUEAGIVI"
+        ],
+        "alwaysNotes": "non-blinking invincibility (4 codes), start with spray gun (3), keep weapon after dying, infinite lives",
+        "startArea": { "2": "PEETLIAA", "3": "ZEETLIAA", "4": "LEETLIAA", "5": "GEETLIAA", "6": "IEETLIAA", "7": "TEETLIAA", "8": "YEETLIAA" },
+        "startAreaNotes": "2-7 from the guide; 8 follows the same Game Genie value pattern (unverified until the run checks $50)"
+    },
+    "controls": { "fire": "b", "jump": "a" },
+    "start": [
+        { "tap": "start", "waitMs": 600 },
+        { "tap": "start", "waitMs": 0 }
+    ],
+    "areas": [
+        { "n": 1, "view": "side" },
+        { "n": 2, "view": "overhead" },
+        { "n": 3, "view": "side" },
+        { "n": 4, "view": "side" },
+        { "n": 5, "view": "side" },
+        { "n": 6, "view": "overhead" },
+        { "n": 7, "view": "side" },
+        { "n": 8, "view": "side" }
+    ]
+}

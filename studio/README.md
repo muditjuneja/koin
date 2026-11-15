@@ -11,9 +11,64 @@ Not part of the published `koin.js` package.
 
 ```bash
 npm ci                                   # repo root
+node studio/bosses.ts super-c            # every area: find the boss, record the kill -> studio/out/super-c/area-N.webm
+node studio/bosses.ts super-c 1 3        # just areas 1 and 3
+node studio/render.ts super-c            # -> area-N-vertical.mp4 (1080x1920) + super-c-all-bosses.mp4 (1920x1080)
+node studio/render.ts super-c --cta-top "PLAY IT IN YOUR BROWSER" --cta "WEPLAYRETRO.GAMES"
+```
+
+`render.ts` needs the Press Start 2P font (SIL OFL) at
+`studio/.cache/fonts/PressStart2P-Regular.ttf`:
+
+```bash
+mkdir -p studio/.cache/fonts && curl -o studio/.cache/fonts/PressStart2P-Regular.ttf https://raw.githubusercontent.com/google/fonts/main/ofl/pressstart2p/PressStart2P-Regular.ttf
+```
+
+## Game profiles (`profiles/*.json`)
+
+Everything game-specific lives in a profile, assembled from published
+sources (not found by hand): RAM addresses from Data Crystal / Gym Retro,
+cheat codes from the libretro database and cheat guides. Each source is
+linked in the profile. The pipeline checks what it can in-game (the game
+reaches the "playing" mode, the start-area code lands on the right level).
+
+| Field | Used for |
+|---|---|
+| `ram.frameCounter` | autopilot clock (works at 1x and fast-forward) |
+| `ram.gameMode` | wait until gameplay has started |
+| `ram.level` | verify the start-area cheat |
+| `ram.bossStatus` | boss-defeated flag: ends the scout and the recording |
+| `ram.progress` | bytes that change as the level scrolls: stall = obstacle or boss arena |
+| `cheats.always` | invincibility, weapon, lives |
+| `cheats.startArea` | jump straight to area N |
+| `areas[].view` | `side` or `overhead`: picks the bot's behaviour set |
+
+## How a boss run works (`bosses.ts`)
+
+1. **Scout (8x fast-forward).** Boot with the profile's cheats + the
+   start-area code and verify the level. The autopilot cycles "push"
+   behaviours (side view: right / up-right / stand and shoot up / left;
+   top-down: up and sideways detours); any progress resets to the first. It
+   stops when the boss screen comes up — the profile's `bossArena` byte
+   changes from its value at the start of the area — or, failing that, after
+   90 game-seconds with no progress. A rolling buffer of save states gives the
+   entrance a 3-second lead-in.
+2. **Fight (1x, in parallel).** One browser per fight behaviour, each loading
+   the entrance, walking in the way the scout did, then fighting (falling back
+   to the other fight behaviours in turn). Each records until the
+   boss-defeated flag (+3.5s for the explosion). The quickest kill is kept.
+
+Fights are decided at 1x on purpose: at fast-forward inputs only change once
+per animation tick (several game frames), so a fast-forward winner doesn't
+predict a 1x winner. Fast-forward is capped at 8x for the same reason.
+
+## Experiments
+
+```bash
 node studio/experiments/title-input.ts   # boots Super C, presses Start/Select, writes screenshots
-node studio/experiments/scout.ts         # bot plays Super C stage 1 at fast-forward, saves a state per screen
+node studio/experiments/scout.ts         # first scout: stage 1 at fast-forward, a state per screen
 node studio/experiments/inspect.ts studio/out/superc-scout   # screenshot each saved state at 1x
+node studio/experiments/fight-watch.ts studio/out/super-c/area-1-boss.state up   # watch a fight at 1x
 ```
 
 ROMs are fetched from the weplayretro.games store (`ROM_STORE` in `lib.ts`);
@@ -54,10 +109,13 @@ Finding these by hand per game doesn't scale. Next step is to source cheats
 from the libretro cheat database and progress/boss signals from generic
 methods (see the discussion in the PR/session) instead.
 
-## Not done yet
+## Gotchas
 
-- Recording verified end-to-end (WebM with audio) and the ffmpeg 9:16 render.
-- Game Genie codes (most libretro `.cht` entries) need koin's core-level cheat
-  path (`_cmd_cheat_set_code`), not the RAM freeze.
-- Screenshots during fast-forward come out black; take them at 1x
-  (`experiments/inspect.ts`).
+- `findRam` must run with the emulator paused (`locateRam` does this): the
+  heap also holds stale copies of RAM (the save-state buffer), and only live
+  RAM keeps changing once resumed.
+- Nostalgist's `pressDown` only fires keys that exist in the RetroArch config,
+  so the page passes koin's default bindings explicitly.
+- Rapid fire toggles per animation tick (`ticks: true`), not per game frame:
+  at fast-forward many frames pass per tick and frame-based toggling aliases.
+- Screenshots during fast-forward come out black; take them at 1x.
