@@ -95,11 +95,11 @@ const intro = path.join(dir, 'seg-0.mp4');
 ffmpeg([
     '-f', 'lavfi', '-i', 'color=c=0x0b0b10:s=1920x1080:d=3:r=60',
     '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
-    '-vf', [text(title, { size: 120, y: '(h/2)-150' }), text('ALL BOSSES', { size: 64, y: '(h/2)+20', color: YELLOW }), text(cta, { size: 28, y: 'h-140' })].join(','),
+    '-vf', [text(title, { size: 120, y: '(h/2)-150' }), text(clips.length === total ? 'ALL BOSSES' : 'BOSS FIGHTS', { size: 64, y: '(h/2)+20', color: YELLOW }), text(cta, { size: 28, y: 'h-140' })].join(','),
     '-t', '3', '-shortest', ...ENCODE, intro,
 ]);
 const list = path.join(dir, 'concat.txt');
 writeFileSync(list, [intro, ...clips.map((c) => path.join(dir, `seg-${c.n}.mp4`))].map((f) => `file '${f}'`).join('\n'));
-const comp = path.join(dir, `${id}-all-bosses.mp4`);
+const comp = path.join(dir, clips.length === total ? `${id}-all-bosses.mp4` : `${id}-boss-fights.mp4`);
 ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', comp]);
 console.log(`compilation: ${comp}`);
