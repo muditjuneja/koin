@@ -9,7 +9,7 @@
  */
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { outDir, cache } from './lib.ts';
 
 const args = process.argv.slice(2);
@@ -20,6 +20,7 @@ const flag = (name: string, fallback: string) => {
 };
 const ctaTop = flag('cta-top', 'PLAY IT IN YOUR BROWSER');
 const cta = flag('cta', 'WEPLAYRETRO.GAMES');
+const force = args.includes('--force'); // re-render clips whose outputs are newer than the recording
 const profile = JSON.parse(readFileSync(path.join(import.meta.dirname, 'profiles', `${id}.json`), 'utf8'));
 const title: string = profile.title.toUpperCase();
 const dir = path.join(outDir, id);
@@ -27,7 +28,7 @@ const font = path.join(cache, 'fonts', 'PressStart2P-Regular.ttf');
 if (!existsSync(font)) throw new Error(`missing ${font} (Press Start 2P, OFL) — see studio/README.md`);
 
 const YELLOW = '0xFFD600';
-const ENCODE = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', '60', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-movflags', '+faststart'];
+const ENCODE = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', '60', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-movflags', '+faststart'];
 
 /** drawtext with the pixel font; text must avoid ':' and '\'' (ffmpeg filter syntax). */
 function text(t: string, opts: { size: number; y: string; x?: string; color?: string; enable?: string; box?: boolean }) {
@@ -71,7 +72,8 @@ for (const clip of clips) {
         ].join(',') + '[v]',
     ].join(';');
     const vOut = path.join(dir, `area-${clip.n}-vertical.mp4`);
-    ffmpeg(['-ss', ss.toFixed(2), '-i', clip.file, '-filter_complex', vertical, '-map', '[v]', '-map', '0:a', ...ENCODE, vOut]);
+    const fresh = (f: string) => force || !existsSync(f) || statSync(f).mtimeMs < statSync(clip.file).mtimeMs;
+    if (fresh(vOut)) ffmpeg(['-ss', ss.toFixed(2), '-i', clip.file, '-filter_complex', vertical, '-map', '[v]', '-map', '0:a', ...ENCODE, vOut]);
 
     // --- 16:9 compilation segment ------------------------------------------------------------------------------
     const wide = [
@@ -86,7 +88,8 @@ for (const clip of clips) {
             text('BOSS DOWN!', { size: 72, y: '(h-text_h)/2', color: YELLOW, enable: `gte(t,${kill.toFixed(2)})`, box: true }),
         ].join(',') + '[v]',
     ].join(';');
-    ffmpeg(['-i', clip.file, '-filter_complex', wide, '-map', '[v]', '-map', '0:a', ...ENCODE, path.join(dir, `seg-${clip.n}.mp4`)]);
+    const seg = path.join(dir, `seg-${clip.n}.mp4`);
+    if (fresh(seg)) ffmpeg(['-i', clip.file, '-filter_complex', wide, '-map', '[v]', '-map', '0:a', ...ENCODE, seg]);
     console.log(`area ${clip.n}: ${path.basename(vOut)} + seg-${clip.n}.mp4`);
 }
 
